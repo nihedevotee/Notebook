@@ -64,3 +64,16 @@ http://localhost:3000
 ## Note
 
 This is still an early version. I will keep improving it over time and make it smoother, cleaner, and more useful for people who like writing with a pen tablet or directly on their PC.
+
+## Latest UI refinement
+
+This version adds:
+
+* Polished light/dark mode with a toolbar toggle
+* ChatGPT-style collapsible sidebar with desktop collapse and mobile overlay behavior
+* Compact rounded Color Hunt-style palette cards
+* Emoji avatars for projects and pages
+* Export dropdown with:
+  * Download as PDF using the browser print dialog / Save as PDF
+  * High-resolution PNG export for the current notebook page
+* Softer spacing, shadows, rounded corners, and modern SaaS-style visual polish

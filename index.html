@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -13,13 +13,14 @@
           <div class="brand-block">
             <p class="eyebrow">Notebook Workspace</p>
             <h1>Projects</h1>
+            <p class="brand-subtitle">Write, sketch, export.</p>
           </div>
           <button id="sidebarToggle" class="icon-button" type="button" title="Toggle sidebar" data-toolbar-action="sidebar-toggle">☰</button>
         </div>
 
         <div class="sidebar-actions">
-          <button id="newProjectBtn" class="small-button primary" type="button" data-toolbar-action="new-project">New Project</button>
-          <button id="newPageBtn" class="small-button" type="button" data-toolbar-action="new-page">New Page</button>
+          <button id="newProjectBtn" class="small-button primary" type="button" data-toolbar-action="new-project"><span class="btn-icon">＋</span><span class="btn-label">New Project</span></button>
+          <button id="newPageBtn" class="small-button" type="button" data-toolbar-action="new-page"><span class="btn-icon">▣</span><span class="btn-label">New Page</span></button>
         </div>
 
         <section class="sidebar-section">
@@ -68,7 +69,14 @@
               <button id="redoBtn" class="tool-button" type="button" data-toolbar-action="redo" title="Redo">Redo</button>
               <button id="beautifyBtn" class="tool-button" type="button" data-toolbar-action="beautify" title="Creamy Handwriting">Creamy</button>
               <button id="saveBtn" class="tool-button" type="button" data-toolbar-action="save" title="Save">Save</button>
-              <button id="exportBtn" class="tool-button" type="button" data-toolbar-action="export" title="Export PNG">Export</button>
+              <button id="themeToggle" class="tool-button ghost" type="button" data-toolbar-action="theme-toggle" title="Toggle dark mode">🌙 Dark</button>
+              <div class="export-group">
+                <button id="exportBtn" class="tool-button" type="button" data-toolbar-action="export" title="Export options" aria-haspopup="true" aria-expanded="false">Export ▾</button>
+                <div id="exportMenu" class="export-menu" hidden>
+                  <button type="button" data-toolbar-action="export-pdf">📄 Download as PDF</button>
+                  <button type="button" data-toolbar-action="export-png">🖼️ Save page as PNG</button>
+                </div>
+              </div>
               <button id="clearBtn" class="tool-button danger" type="button" data-toolbar-action="clear" title="Clear current page">Clear</button>
             </div>
           </div>

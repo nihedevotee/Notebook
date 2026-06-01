@@ -1,4 +1,6 @@
 const STORAGE_KEY = "simple-notebook-workspace-v1";
+const THEME_KEY = "simple-notebook-theme-v1";
+
 
 const INK_COLORS = ["#1d4ed8", "#ec4899", "#38bdf8", "#f97316", "#111827"];
 
@@ -31,6 +33,8 @@ const DOM = {
   redoBtn: document.getElementById("redoBtn"),
   beautifyBtn: document.getElementById("beautifyBtn"),
   saveBtn: document.getElementById("saveBtn"),
+  themeToggle: document.getElementById("themeToggle"),
+  exportMenu: document.getElementById("exportMenu"),
   exportBtn: document.getElementById("exportBtn"),
   clearBtn: document.getElementById("clearBtn"),
   board: document.getElementById("board"),
@@ -48,6 +52,8 @@ const state = {
   brushSize: 4,
   mode: "pen",
   sidebarOpen: true,
+  theme: "light",
+  exportMenuOpen: false,
   menu: null,
   isDrawing: false,
   activePointerId: null,
@@ -171,6 +177,7 @@ function serializeWorkspace() {
     brushSize: state.brushSize,
     mode: state.mode,
     sidebarOpen: state.sidebarOpen,
+    theme: state.theme,
   };
 }
 
@@ -193,6 +200,29 @@ function setStatus(message) {
   }, 1800);
 }
 
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme;
+  localStorage.setItem(THEME_KEY, state.theme);
+  if (DOM.themeToggle) {
+    DOM.themeToggle.textContent = state.theme === "dark" ? "☀️ Light" : "🌙 Dark";
+    DOM.themeToggle.setAttribute("aria-label", `Switch to ${state.theme === "dark" ? "light" : "dark"} mode`);
+  }
+}
+
+function toggleTheme() {
+  state.theme = state.theme === "dark" ? "light" : "dark";
+  applyTheme();
+  scheduleSave();
+  setStatus(`${state.theme === "dark" ? "Dark" : "Light"} mode enabled.`);
+}
+
+function getEmojiForId(id, fallback = "✨") {
+  const emojis = ["😊", "🎨", "📚", "🚀", "💡", "✨", "🌙", "📝", "🧠", "🌿"];
+  let sum = 0;
+  for (const char of String(id || fallback)) sum += char.charCodeAt(0);
+  return emojis[sum % emojis.length];
+}
+
 function loadWorkspace() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -200,6 +230,7 @@ function loadWorkspace() {
       state.projects = [createDefaultProject()];
       state.selectedProjectId = state.projects[0].id;
       state.selectedPageId = state.projects[0].pages[0].id;
+      state.theme = localStorage.getItem(THEME_KEY) || "light";
       return;
     }
 
@@ -212,13 +243,16 @@ function loadWorkspace() {
     state.brushSize = Number(parsed.brushSize) || state.brushSize;
     state.mode = parsed.mode === "eraser" ? "eraser" : "pen";
     state.sidebarOpen = typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : window.innerWidth > 980;
+    state.theme = parsed.theme || localStorage.getItem(THEME_KEY) || "light";
   } catch {
     state.projects = [createDefaultProject()];
     state.selectedProjectId = state.projects[0].id;
     state.selectedPageId = state.projects[0].pages[0].id;
     state.sidebarOpen = window.innerWidth > 980;
+    state.theme = localStorage.getItem(THEME_KEY) || "light";
   }
 
+  state.theme = state.theme === "dark" ? "dark" : "light";
   ensureWorkspace();
 }
 
@@ -600,23 +634,81 @@ function redrawWithPaper(targetContext, width, height, strokes) {
   }
 }
 
-function exportCurrentPage() {
+function createPageExportCanvas(scale = Math.max(2, window.devicePixelRatio || 1)) {
   const page = getCurrentPage();
-  if (!page) return;
+  if (!page) return null;
   const rect = DOM.board.getBoundingClientRect();
-  const ratio = Math.max(2, window.devicePixelRatio || 1);
   const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = Math.max(1, Math.floor(rect.width * ratio));
-  exportCanvas.height = Math.max(1, Math.floor(rect.height * ratio));
+  exportCanvas.width = Math.max(1, Math.floor(rect.width * scale));
+  exportCanvas.height = Math.max(1, Math.floor(rect.height * scale));
   const exportContext = exportCanvas.getContext("2d");
-  exportContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+  exportContext.setTransform(scale, 0, 0, scale, 0, 0);
   renderPaperBackground(exportContext, rect.width, rect.height, page.themeId);
   for (const stroke of page.strokes) renderStroke(stroke, exportContext);
+  return exportCanvas;
+}
+
+function safeFileName(text, fallback = "notebook-page") {
+  return (text || fallback).replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || fallback;
+}
+
+function exportPageAsPng() {
+  const page = getCurrentPage();
+  const canvas = createPageExportCanvas();
+  if (!page || !canvas) return;
   const link = document.createElement("a");
-  link.href = exportCanvas.toDataURL("image/png");
-  link.download = `${(page.name || "notebook-page").replace(/[^a-z0-9-_]+/gi, "-").toLowerCase()}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.download = `${safeFileName(page.name)}.png`;
   link.click();
-  setStatus("Page exported as PNG.");
+  state.exportMenuOpen = false;
+  renderToolbarState();
+  setStatus("Page saved as high-resolution PNG.");
+}
+
+function exportPageAsPdf() {
+  const page = getCurrentPage();
+  const project = getSelectedProject();
+  const canvas = createPageExportCanvas(2);
+  if (!page || !canvas) return;
+  const dataUrl = canvas.toDataURL("image/png");
+  const title = `${project?.name || "Notebook"} — ${page.name || "Page"}`;
+  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  if (!printWindow) {
+    setStatus("Allow popups, then try PDF export again.");
+    return;
+  }
+  printWindow.document.write(`<!doctype html>
+<html>
+<head>
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; color: #111827; background: #f7f7f5; }
+    .sheet { min-height: 100vh; padding: 18px; display: grid; gap: 14px; align-content: start; }
+    .meta { display: flex; justify-content: space-between; align-items: end; gap: 18px; color: #4b5563; font-size: 12px; }
+    h1 { margin: 0; color: #111827; font-size: 18px; }
+    img { width: 100%; height: auto; border-radius: 18px; border: 1px solid rgba(17,24,39,.12); box-shadow: 0 14px 40px rgba(17,24,39,.10); background: #fff; }
+    @media print { body { background: #fff; } .sheet { padding: 0; } img { box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <div class="meta"><div><h1>${escapeHtml(page.name || "Notebook page")}</h1><span>${escapeHtml(project?.name || "Notebook")}</span></div><span>${new Date().toLocaleDateString()}</span></div>
+    <img src="${dataUrl}" alt="${escapeHtml(title)}" />
+  </main>
+  <script>window.addEventListener('load', () => { setTimeout(() => window.print(), 150); });<\/script>
+</body>
+</html>`);
+  printWindow.document.close();
+  state.exportMenuOpen = false;
+  renderToolbarState();
+  setStatus("PDF export opened. Choose Save as PDF in the print dialog.");
+}
+
+function toggleExportMenu() {
+  state.exportMenuOpen = !state.exportMenuOpen;
+  renderToolbarState();
 }
 
 function startStroke(event) {
@@ -724,7 +816,7 @@ function renderProjectList() {
               return `
                 <div class="page-row">
                   <button class="page-item ${selected ? "is-active" : ""}" data-action="select-page" data-project-id="${project.id}" data-page-id="${page.id}">
-                    <span class="page-indicator"></span>
+                    <span class="emoji-avatar" aria-hidden="true">${getEmojiForId(page.id, "📄")}</span>
                     <span class="page-name">${escapeHtml(page.name)}</span>
                   </button>
                   <button class="menu-button" data-action="toggle-page-menu" data-project-id="${project.id}" data-page-id="${page.id}" aria-label="Page menu">⋯</button>
@@ -739,6 +831,7 @@ function renderProjectList() {
           <div class="project-row">
             <button class="project-main" data-action="select-project" data-project-id="${project.id}">
               <span class="chevron">${project.expanded ? "▾" : "▸"}</span>
+              <span class="emoji-avatar project-emoji" aria-hidden="true">${getEmojiForId(project.id, "📚")}</span>
               <span class="project-name">${escapeHtml(project.name)}</span>
               <span class="count">${project.pages.length}</span>
             </button>
@@ -766,7 +859,7 @@ function renderPalettePicker() {
     const active = palette.id === state.selectedPaletteId;
     return `
       <button class="palette-card ${active ? "is-active" : ""}" data-action="select-palette" data-palette-id="${palette.id}">
-        <span class="palette-title">${escapeHtml(palette.name)}</span>
+        <span class="palette-meta"><span class="palette-title">${escapeHtml(palette.name)}</span><span class="palette-dot">✨</span></span>
         <span class="palette-samples">
           <span class="sample" style="background:${palette.bg}"></span>
           <span class="sample" style="background:${palette.line}"></span>
@@ -796,6 +889,9 @@ function renderToolbarState() {
   DOM.eraserBtn.classList.toggle("is-active", state.mode === "eraser");
   DOM.appShell.classList.toggle("sidebar-open", state.sidebarOpen);
   DOM.appShell.classList.toggle("sidebar-collapsed", !state.sidebarOpen);
+  DOM.appShell.classList.toggle("export-open", state.exportMenuOpen);
+  if (DOM.exportMenu) DOM.exportMenu.hidden = !state.exportMenuOpen;
+  applyTheme();
 }
 
 function renderAllSidebar() {
@@ -893,7 +989,10 @@ function handleToolbarClick(event) {
     saveNow();
     setStatus("Saved locally.");
   }
-  if (action === "export") exportCurrentPage();
+  if (action === "theme-toggle") toggleTheme();
+  if (action === "export") toggleExportMenu();
+  if (action === "export-png") exportPageAsPng();
+  if (action === "export-pdf") exportPageAsPdf();
   if (action === "clear") clearCurrentPage();
 }
 
@@ -901,10 +1000,6 @@ function initEvents() {
   DOM.sidebar.addEventListener("click", handleSidebarClick);
   DOM.appShell.addEventListener("click", handleToolbarClick);
   DOM.scrim.addEventListener("click", () => toggleSidebar(false));
-  DOM.sidebarToggle.addEventListener("click", () => toggleSidebar());
-  DOM.newProjectBtn.addEventListener("click", createProject);
-  DOM.newPageBtn.addEventListener("click", () => createPage());
-
   DOM.colorSwatches.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-action='select-color']");
     if (!button) return;
@@ -924,11 +1019,17 @@ function initEvents() {
   DOM.board.addEventListener("contextmenu", (event) => event.preventDefault());
 
   document.addEventListener("click", (event) => {
-    if (event.target.closest(".menu-button") || event.target.closest(".menu-popover")) return;
+    if (event.target.closest(".menu-button") || event.target.closest(".menu-popover") || event.target.closest(".export-group")) return;
+    let changed = false;
     if (state.menu) {
       state.menu = null;
-      renderAllSidebar();
+      changed = true;
     }
+    if (state.exportMenuOpen) {
+      state.exportMenuOpen = false;
+      changed = true;
+    }
+    if (changed) renderAllSidebar();
   });
 
   window.addEventListener("resize", () => {
@@ -951,6 +1052,7 @@ function boot() {
   if (window.innerWidth <= 980 && !localStorage.getItem(STORAGE_KEY)) {
     state.sidebarOpen = false;
   }
+  applyTheme();
   renderAll();
   resizeCanvas();
   setStatus(state.projects.length ? "Workspace loaded." : "Autosaves locally in this browser.");
