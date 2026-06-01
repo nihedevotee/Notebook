@@ -1,79 +1,90 @@
 ﻿<!doctype html>
-<html lang='en'>
+<html lang="en">
   <head>
-    <meta charset='UTF-8' />
-    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
-    <title>Simple Notebook</title>
-    <link rel='stylesheet' href='./styles.css' />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notebook Workspace</title>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class='app-shell'>
-      <section class='notebook'>
-        <aside class='toolbar'>
-          <div>
-            <p class='eyebrow'>Pen Tablet Notebook</p>
-            <h1>Write freely</h1>
-            <p class='subtitle'>A lightweight notebook for handwriting, sketching, and quick notes. It autosaves locally and keeps the page smooth on pen tablet, mouse, or touch.</p>
+    <div id="appShell" class="app-shell">
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-top">
+          <div class="brand-block">
+            <p class="eyebrow">Notebook Workspace</p>
+            <h1>Projects</h1>
           </div>
+          <button id="sidebarToggle" class="icon-button" type="button" title="Toggle sidebar" data-toolbar-action="sidebar-toggle">☰</button>
+        </div>
 
-          <div class='tool-block'>
-            <label>Ink color</label>
-            <div class='palette' id='palette'>
-              <button class='swatch active' data-color='#1f2937' style='--swatch:#1f2937' title='Graphite'></button>
-              <button class='swatch' data-color='#1d4ed8' style='--swatch:#1d4ed8' title='Blue'></button>
-              <button class='swatch' data-color='#dc2626' style='--swatch:#dc2626' title='Red'></button>
-              <button class='swatch' data-color='#15803d' style='--swatch:#15803d' title='Green'></button>
-              <button class='swatch' data-color='#7c3aed' style='--swatch:#7c3aed' title='Purple'></button>
-              <button class='swatch' data-color='#ea580c' style='--swatch:#ea580c' title='Orange'></button>
+        <div class="sidebar-actions">
+          <button id="newProjectBtn" class="small-button primary" type="button" data-toolbar-action="new-project">New Project</button>
+          <button id="newPageBtn" class="small-button" type="button" data-toolbar-action="new-page">New Page</button>
+        </div>
+
+        <section class="sidebar-section">
+          <div class="section-title-row">
+            <h2>Projects</h2>
+            <span class="section-hint">Click to open pages</span>
+          </div>
+          <div id="projectList" class="project-list"></div>
+        </section>
+
+        <section class="sidebar-section">
+          <div class="section-title-row">
+            <h2>Palettes</h2>
+            <span class="section-hint">Color Hunt inspired</span>
+          </div>
+          <div id="paletteList" class="palette-list"></div>
+        </section>
+      </aside>
+
+      <button id="scrim" class="scrim" type="button" aria-label="Close sidebar"></button>
+
+      <main class="workspace">
+        <header class="toolbar">
+          <div class="toolbar-left">
+            <div class="document-head">
+              <div id="projectTitle" class="document-title">Notebook</div>
+              <div id="pageTitle" class="document-subtitle">Page</div>
             </div>
           </div>
 
-          <div class='tool-block'>
-            <label for='brushSize'>Ink size</label>
-            <input id='brushSize' type='range' min='1' max='22' value='4' />
-            <div class='range-labels'><span>Fine</span><span>Bold</span></div>
+          <div class="toolbar-right">
+            <div class="color-group">
+              <span class="group-label">Ink</span>
+              <div id="colorSwatches" class="color-swatches"></div>
+            </div>
+
+            <div class="brush-group">
+              <span class="group-label">Size</span>
+              <input id="brushSize" class="brush-slider" type="range" min="1" max="22" value="4" />
+            </div>
+
+            <div class="tool-strip">
+              <button id="penBtn" class="tool-button primary is-active" type="button" data-toolbar-action="pen" title="Pen">Pen</button>
+              <button id="eraserBtn" class="tool-button" type="button" data-toolbar-action="eraser" title="Eraser">Eraser</button>
+              <button id="undoBtn" class="tool-button" type="button" data-toolbar-action="undo" title="Undo">Undo</button>
+              <button id="redoBtn" class="tool-button" type="button" data-toolbar-action="redo" title="Redo">Redo</button>
+              <button id="beautifyBtn" class="tool-button" type="button" data-toolbar-action="beautify" title="Creamy Handwriting">Creamy</button>
+              <button id="saveBtn" class="tool-button" type="button" data-toolbar-action="save" title="Save">Save</button>
+              <button id="exportBtn" class="tool-button" type="button" data-toolbar-action="export" title="Export PNG">Export</button>
+              <button id="clearBtn" class="tool-button danger" type="button" data-toolbar-action="clear" title="Clear current page">Clear</button>
+            </div>
           </div>
+        </header>
 
-          <div class='tool-row'>
-            <button class='action primary' id='penMode' title='Draw with ink'>Pen</button>
-            <button class='action' id='eraserMode' title='Erase strokes'>Eraser</button>
-          </div>
-
-          <div class='tool-row'>
-            <button class='action' id='undoBtn' title='Undo last stroke'>Undo</button>
-            <button class='action' id='redoBtn' title='Redo last stroke'>Redo</button>
-          </div>
-
-          <div class='tool-row'>
-            <button class='action' id='beautifyBtn' title='Smooth and polish the handwriting'>Creamy Handwriting</button>
-          </div>
-
-          <div class='tool-row'>
-            <button class='action' id='saveBtn' title='Save the page to local storage'>Save</button>
-            <button class='action' id='exportBtn' title='Download the page as PNG'>Export PNG</button>
-          </div>
-
-          <div class='tool-row'>
-            <button class='action danger' id='clearBtn' title='Clear the entire page'>Clear</button>
-          </div>
-
-          <div class='status-card'>
-            <strong>Tip</strong>
-            <span>Use your pen tablet or mouse. The page saves itself locally, and the Creamy Handwriting button gently smooths rough strokes without turning them into typed text.</span>
-          </div>
-
-          <div class='status-line' id='statusLine'>Autosaves locally in this browser.</div>
-        </aside>
-
-        <section class='paper-wrap'>
-          <div class='paper-frame'>
-            <canvas id='board'></canvas>
-            <div class='paper-overlay'></div>
+        <section class="paper-shell">
+          <div class="paper-frame">
+            <canvas id="board"></canvas>
+            <div class="paper-overlay"></div>
           </div>
         </section>
-      </section>
-    </main>
 
-    <script type='module' src='./app.js'></script>
+        <footer id="status" class="status-pill">Autosaves locally in this browser.</footer>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
   </body>
 </html>
