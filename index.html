@@ -1,0 +1,79 @@
+﻿<!doctype html>
+<html lang='en'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Simple Notebook</title>
+    <link rel='stylesheet' href='./styles.css' />
+  </head>
+  <body>
+    <main class='app-shell'>
+      <section class='notebook'>
+        <aside class='toolbar'>
+          <div>
+            <p class='eyebrow'>Pen Tablet Notebook</p>
+            <h1>Write freely</h1>
+            <p class='subtitle'>A lightweight notebook for handwriting, sketching, and quick notes. It autosaves locally and keeps the page smooth on pen tablet, mouse, or touch.</p>
+          </div>
+
+          <div class='tool-block'>
+            <label>Ink color</label>
+            <div class='palette' id='palette'>
+              <button class='swatch active' data-color='#1f2937' style='--swatch:#1f2937' title='Graphite'></button>
+              <button class='swatch' data-color='#1d4ed8' style='--swatch:#1d4ed8' title='Blue'></button>
+              <button class='swatch' data-color='#dc2626' style='--swatch:#dc2626' title='Red'></button>
+              <button class='swatch' data-color='#15803d' style='--swatch:#15803d' title='Green'></button>
+              <button class='swatch' data-color='#7c3aed' style='--swatch:#7c3aed' title='Purple'></button>
+              <button class='swatch' data-color='#ea580c' style='--swatch:#ea580c' title='Orange'></button>
+            </div>
+          </div>
+
+          <div class='tool-block'>
+            <label for='brushSize'>Ink size</label>
+            <input id='brushSize' type='range' min='1' max='22' value='4' />
+            <div class='range-labels'><span>Fine</span><span>Bold</span></div>
+          </div>
+
+          <div class='tool-row'>
+            <button class='action primary' id='penMode' title='Draw with ink'>Pen</button>
+            <button class='action' id='eraserMode' title='Erase strokes'>Eraser</button>
+          </div>
+
+          <div class='tool-row'>
+            <button class='action' id='undoBtn' title='Undo last stroke'>Undo</button>
+            <button class='action' id='redoBtn' title='Redo last stroke'>Redo</button>
+          </div>
+
+          <div class='tool-row'>
+            <button class='action' id='beautifyBtn' title='Smooth and polish the handwriting'>Creamy Handwriting</button>
+          </div>
+
+          <div class='tool-row'>
+            <button class='action' id='saveBtn' title='Save the page to local storage'>Save</button>
+            <button class='action' id='exportBtn' title='Download the page as PNG'>Export PNG</button>
+          </div>
+
+          <div class='tool-row'>
+            <button class='action danger' id='clearBtn' title='Clear the entire page'>Clear</button>
+          </div>
+
+          <div class='status-card'>
+            <strong>Tip</strong>
+            <span>Use your pen tablet or mouse. The page saves itself locally, and the Creamy Handwriting button gently smooths rough strokes without turning them into typed text.</span>
+          </div>
+
+          <div class='status-line' id='statusLine'>Autosaves locally in this browser.</div>
+        </aside>
+
+        <section class='paper-wrap'>
+          <div class='paper-frame'>
+            <canvas id='board'></canvas>
+            <div class='paper-overlay'></div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type='module' src='./app.js'></script>
+  </body>
+</html>
