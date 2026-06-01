@@ -518,3 +518,236 @@ canvas {
     min-height: 64vh;
   }
 }
+.app-shell {
+  --sidebar-width: 300px;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  transition: grid-template-columns 220ms ease;
+}
+
+.app-shell.sidebar-collapsed {
+  --sidebar-width: 74px;
+}
+
+.paper-frame {
+  background:
+    linear-gradient(to bottom, transparent 0, transparent 31px, var(--paper-line) 32px),
+    linear-gradient(to right, var(--paper-margin) 0 74px, transparent 74px),
+    linear-gradient(180deg, var(--paper-bg) 0%, var(--paper-bg) 100%);
+  background-size: 100% 32px, 100% 100%, 100% 100%;
+  border: 1px solid var(--paper-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), var(--paper-shadow);
+}
+
+.paper-frame::before {
+  background:
+    radial-gradient(circle at 28px 28px, rgba(185, 62, 62, 0.32) 0 2px, transparent 3px),
+    linear-gradient(90deg, transparent 0 70px, rgba(183, 58, 58, 0.08) 70px 71px, transparent 71px),
+    linear-gradient(135deg, var(--paper-texture), transparent 35%);
+}
+
+@media (min-width: 921px) {
+  .app-shell.sidebar-collapsed .sidebar {
+    padding: 14px 10px;
+  }
+
+  .app-shell.sidebar-collapsed .eyebrow,
+  .app-shell.sidebar-collapsed .sidebar h1,
+  .app-shell.sidebar-collapsed .btn-label,
+  .app-shell.sidebar-collapsed .section-hint,
+  .app-shell.sidebar-collapsed .project-name,
+  .app-shell.sidebar-collapsed .page-name,
+  .app-shell.sidebar-collapsed .palette-title,
+  .app-shell.sidebar-collapsed .count,
+  .app-shell.sidebar-collapsed .chevron {
+    display: none;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar-actions .small-button {
+    font-size: 0;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .app-shell.sidebar-collapsed #newProjectBtn::before {
+    content: "＋";
+    font-size: 1rem;
+  }
+
+  .app-shell.sidebar-collapsed #newPageBtn::before {
+    content: "▣";
+    font-size: 1rem;
+  }
+
+  .app-shell.sidebar-collapsed .project-row,
+  .app-shell.sidebar-collapsed .page-row {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell.sidebar-collapsed .page-list {
+    display: none;
+  }
+
+  .app-shell.sidebar-collapsed .palette-samples {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 920px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 12px auto 12px 12px;
+    width: min(88vw, 320px);
+    transform: translateX(-110%);
+    transition: transform 220ms ease;
+    z-index: 20;
+  }
+
+  .app-shell.sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+}
+/* ===== FIX: soft GPT-like sidebar collapse ===== */
+
+.app-shell {
+  --sidebar-width: 300px;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  transition: grid-template-columns 220ms ease;
+}
+
+.app-shell.sidebar-collapsed {
+  --sidebar-width: 74px;
+}
+
+.sidebar {
+  overflow: hidden;
+  transition:
+    padding 220ms ease,
+    border-radius 220ms ease,
+    transform 220ms ease;
+}
+
+@media (min-width: 921px) {
+  .app-shell.sidebar-collapsed .sidebar {
+    padding: 14px 10px;
+    align-items: center;
+  }
+
+  .app-shell.sidebar-collapsed .brand-block,
+  .app-shell.sidebar-collapsed .section-title-row,
+  .app-shell.sidebar-collapsed .project-name,
+  .app-shell.sidebar-collapsed .page-name,
+  .app-shell.sidebar-collapsed .palette-title,
+  .app-shell.sidebar-collapsed .count,
+  .app-shell.sidebar-collapsed .chevron {
+    display: none;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar-top {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar-actions {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .app-shell.sidebar-collapsed .small-button {
+    width: 52px;
+    height: 42px;
+    padding: 0;
+    font-size: 0;
+    display: grid;
+    place-items: center;
+  }
+
+  .app-shell.sidebar-collapsed #newProjectBtn::before {
+    content: "+";
+    font-size: 1.25rem;
+  }
+
+  .app-shell.sidebar-collapsed #newPageBtn::before {
+    content: "□";
+    font-size: 1.05rem;
+  }
+
+  .app-shell.sidebar-collapsed .project-list,
+  .app-shell.sidebar-collapsed .palette-list {
+    width: 100%;
+  }
+
+  .app-shell.sidebar-collapsed .project-row,
+  .app-shell.sidebar-collapsed .page-row {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell.sidebar-collapsed .project-main,
+  .app-shell.sidebar-collapsed .page-item,
+  .app-shell.sidebar-collapsed .palette-card {
+    width: 52px;
+    min-width: 52px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .app-shell.sidebar-collapsed .menu-button,
+  .app-shell.sidebar-collapsed .page-list,
+  .app-shell.sidebar-collapsed .menu-popover {
+    display: none;
+  }
+
+  .app-shell.sidebar-collapsed .palette-card {
+    display: grid;
+    place-items: center;
+  }
+
+  .app-shell.sidebar-collapsed .palette-samples {
+    width: 32px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3px;
+  }
+}
+
+/* ===== FIX: palette changes notebook paper only ===== */
+
+.paper-frame {
+  --paper-bg: #fffaf0;
+  --paper-line: rgba(103, 139, 196, 0.14);
+  --paper-margin: rgba(240, 174, 196, 0.16);
+  --paper-border: rgba(141, 153, 182, 0.18);
+  --paper-shadow: 0 16px 40px rgba(31, 41, 55, 0.08);
+  --paper-texture: rgba(255, 255, 255, 0.28);
+
+  background:
+    linear-gradient(to bottom, transparent 0, transparent 31px, var(--paper-line) 32px),
+    linear-gradient(to right, var(--paper-margin) 0 74px, transparent 74px),
+    linear-gradient(180deg, var(--paper-bg) 0%, var(--paper-bg) 100%);
+  background-size: 100% 32px, 100% 100%, 100% 100%;
+  border: 1px solid var(--paper-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    var(--paper-shadow);
+}
+
+.paper-frame::before {
+  background:
+    radial-gradient(circle at 28px 28px, var(--paper-margin) 0 2px, transparent 3px),
+    linear-gradient(90deg, transparent 0 70px, var(--paper-margin) 70px 71px, transparent 71px),
+    linear-gradient(135deg, var(--paper-texture), transparent 35%);
+}
+
+.paper-overlay {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent 34%),
+    linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.015));
+}

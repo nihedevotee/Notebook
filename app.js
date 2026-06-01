@@ -1,13 +1,14 @@
-﻿const STORAGE_KEY = "simple-notebook-workspace-v1";
+const STORAGE_KEY = "simple-notebook-workspace-v1";
+
+const INK_COLORS = ["#1d4ed8", "#ec4899", "#38bdf8", "#f97316", "#111827"];
 
 const PALETTES = [
-  { id: "soft-pastel", name: "Soft Pastel", colors: ["#5b6cff", "#ff8fb1", "#7dd3fc", "#f6c177"] },
-  { id: "warm-coffee", name: "Warm Coffee", colors: ["#3f2d20", "#8b5e34", "#d4a373", "#f5e6ca"] },
-  { id: "dark-academic", name: "Dark Academic", colors: ["#0f172a", "#334155", "#64748b", "#cbd5e1"] },
-  { id: "blue-notebook", name: "Blue Notebook", colors: ["#0f4c81", "#3b82f6", "#93c5fd", "#dbeafe"] },
-  { id: "nature-green", name: "Nature Green", colors: ["#14532d", "#2f855a", "#84cc16", "#dcfce7"] },
-  { id: "sunset", name: "Sunset", colors: ["#b91c1c", "#f97316", "#fb7185", "#fde68a"] },
-  { id: "minimal-black", name: "Minimal Black", colors: ["#111827", "#374151", "#6b7280", "#e5e7eb"] },
+  { id: "soft-pastel", name: "Soft Pastel", bg: "#fffaf0", line: "rgba(103, 139, 196, 0.14)", margin: "rgba(240, 174, 196, 0.16)", border: "rgba(141, 153, 182, 0.18)", shadow: "0 16px 40px rgba(31, 41, 55, 0.08)", texture: "rgba(255,255,255,0.34)" },
+  { id: "warm-coffee", name: "Warm Coffee", bg: "#f8efe1", line: "rgba(114, 85, 55, 0.16)", margin: "rgba(146, 98, 55, 0.18)", border: "rgba(125, 93, 63, 0.2)", shadow: "0 16px 40px rgba(74, 54, 38, 0.12)", texture: "rgba(255,255,255,0.24)" },
+  { id: "dark-academic", name: "Dark Academic", bg: "#1a1f2a", line: "rgba(180, 190, 205, 0.16)", margin: "rgba(98, 112, 129, 0.24)", border: "rgba(128, 140, 157, 0.2)", shadow: "0 16px 42px rgba(3, 7, 18, 0.42)", texture: "rgba(255,255,255,0.05)" },
+  { id: "forest-night", name: "Forest Night", bg: "#102018", line: "rgba(164, 201, 164, 0.16)", margin: "rgba(86, 119, 86, 0.18)", border: "rgba(112, 140, 112, 0.2)", shadow: "0 16px 42px rgba(4, 10, 7, 0.36)", texture: "rgba(255,255,255,0.06)" },
+  { id: "ocean-study", name: "Ocean Study", bg: "#eef7ff", line: "rgba(94, 126, 166, 0.16)", margin: "rgba(121, 170, 214, 0.18)", border: "rgba(118, 149, 183, 0.2)", shadow: "0 16px 40px rgba(30, 58, 90, 0.1)", texture: "rgba(255,255,255,0.32)" },
+  { id: "minimal-black", name: "Minimal Black", bg: "#0d1117", line: "rgba(210, 215, 224, 0.16)", margin: "rgba(120, 128, 138, 0.22)", border: "rgba(137, 146, 158, 0.22)", shadow: "0 16px 42px rgba(0, 0, 0, 0.46)", texture: "rgba(255,255,255,0.04)" },
 ];
 
 const DOM = {
@@ -23,6 +24,7 @@ const DOM = {
   pageTitle: document.getElementById("pageTitle"),
   colorSwatches: document.getElementById("colorSwatches"),
   brushSize: document.getElementById("brushSize"),
+  paperFrame: document.querySelector(".paper-frame"),
   penBtn: document.getElementById("penBtn"),
   eraserBtn: document.getElementById("eraserBtn"),
   undoBtn: document.getElementById("undoBtn"),
@@ -42,7 +44,7 @@ const state = {
   selectedProjectId: null,
   selectedPageId: null,
   selectedPaletteId: "soft-pastel",
-  selectedColor: "#1f2937",
+  selectedColor: INK_COLORS[0],
   brushSize: 4,
   mode: "pen",
   sidebarOpen: true,
@@ -91,6 +93,7 @@ function createDefaultPage(name = "Page 1") {
   return {
     id: uid("page"),
     name,
+    themeId: "soft-pastel",
     strokes: [],
     redoStack: [],
   };
@@ -129,11 +132,12 @@ function ensureWorkspace() {
     if (!Array.isArray(project.pages) || !project.pages.length) {
       project.pages = [createDefaultPage()];
     }
-    for (const page of project.pages) {
-      page.strokes = Array.isArray(page.strokes) ? page.strokes.map(cloneStroke) : [];
-      page.redoStack = Array.isArray(page.redoStack) ? page.redoStack.map(cloneStroke) : [];
-    }
     project.expanded = Boolean(project.expanded);
+    for (const page of project.pages) {
+      page.themeId = PALETTES.some((palette) => palette.id === page.themeId) ? page.themeId : "soft-pastel";
+      page.strokes = Array.isArray(page.strokes) ? page.strokes : [];
+      page.redoStack = Array.isArray(page.redoStack) ? page.redoStack : [];
+    }
   }
 
   if (!state.projects.some((project) => project.id === state.selectedProjectId)) {
@@ -146,12 +150,11 @@ function ensureWorkspace() {
   }
 
   if (!PALETTES.some((palette) => palette.id === state.selectedPaletteId)) {
-    state.selectedPaletteId = PALETTES[0].id;
+    state.selectedPaletteId = getSelectedPage()?.themeId || PALETTES[0].id;
   }
 
-  const palette = getPalette(state.selectedPaletteId);
-  if (!palette.colors.includes(state.selectedColor)) {
-    state.selectedColor = palette.colors[0];
+  if (!INK_COLORS.includes(state.selectedColor)) {
+    state.selectedColor = INK_COLORS[0];
   }
 
   state.brushSize = Number(state.brushSize) || 4;
@@ -223,14 +226,28 @@ function getCurrentPalette() {
   return getPalette(state.selectedPaletteId);
 }
 
+function applyPaperTheme(themeId) {
+  const palette = getPalette(themeId || state.selectedPaletteId);
+
+  DOM.paperFrame.style.setProperty("--paper-bg", palette.bg);
+  DOM.paperFrame.style.setProperty("--paper-line", palette.line);
+  DOM.paperFrame.style.setProperty("--paper-margin", palette.margin);
+  DOM.paperFrame.style.setProperty("--paper-border", palette.border);
+  DOM.paperFrame.style.setProperty("--paper-shadow", palette.shadow);
+  DOM.paperFrame.style.setProperty("--paper-texture", palette.texture);
+}
+
 function setActivePalette(id) {
+  const page = getSelectedPage();
+  if (!page) return;
+
   state.selectedPaletteId = id;
-  const palette = getPalette(id);
-  if (!palette.colors.includes(state.selectedColor)) {
-    state.selectedColor = palette.colors[0];
-  }
+  page.themeId = id;
+
+  applyPaperTheme(id);
   scheduleSave();
-  renderAll();
+  renderPalettePicker();
+  setStatus("Notebook theme changed.");
 }
 
 function setSelectedColor(color) {
@@ -261,12 +278,13 @@ function selectPage(projectId, pageId) {
   if (!project) return;
   const page = project.pages.find((item) => item.id === pageId);
   if (!page) return;
-  state.selectedProjectId = projectId;
-  state.selectedPageId = pageId;
-  project.expanded = true;
-  state.menu = null;
-  scheduleSave();
-  renderAll();
+ state.selectedProjectId = projectId;
+state.selectedPageId = pageId;
+state.selectedPaletteId = page.themeId || state.selectedPaletteId;
+project.expanded = true;
+state.menu = null;
+scheduleSave();
+renderAll();
 }
 
 function createProject() {
@@ -513,13 +531,14 @@ function renderStroke(stroke, targetContext = context) {
   targetContext.restore();
 }
 
-function renderPaperBackground(targetContext, width, height) {
+function renderPaperBackground(targetContext, width, height, themeId) {
+  const palette = getPalette(themeId || state.selectedPaletteId);
   targetContext.save();
-  targetContext.fillStyle = "#fffdf6";
+  targetContext.fillStyle = palette.bg;
   targetContext.fillRect(0, 0, width, height);
-  targetContext.fillStyle = "rgba(183, 58, 58, 0.14)";
+  targetContext.fillStyle = palette.margin;
   targetContext.fillRect(70, 0, 1.2, height);
-  targetContext.strokeStyle = "rgba(63, 98, 148, 0.12)";
+  targetContext.strokeStyle = palette.line;
   targetContext.lineWidth = 1;
   for (let lineY = 31; lineY < height; lineY += 32) {
     targetContext.beginPath();
@@ -549,7 +568,7 @@ function queueRender() {
   state.renderQueued = true;
   requestAnimationFrame(() => {
     state.renderQueued = false;
-    renderAll();
+    renderCanvas();
   });
 }
 
@@ -591,7 +610,8 @@ function exportCurrentPage() {
   exportCanvas.height = Math.max(1, Math.floor(rect.height * ratio));
   const exportContext = exportCanvas.getContext("2d");
   exportContext.setTransform(ratio, 0, 0, ratio, 0, 0);
-  redrawWithPaper(exportContext, rect.width, rect.height, page.strokes);
+  renderPaperBackground(exportContext, rect.width, rect.height, page.themeId);
+  for (const stroke of page.strokes) renderStroke(stroke, exportContext);
   const link = document.createElement("a");
   link.href = exportCanvas.toDataURL("image/png");
   link.download = `${(page.name || "notebook-page").replace(/[^a-z0-9-_]+/gi, "-").toLowerCase()}.png`;
@@ -601,7 +621,7 @@ function exportCurrentPage() {
 
 function startStroke(event) {
   if (event.button !== 0 && event.pointerType !== "pen") return;
-  const page = getCurrentPage();
+  const page = getSelectedPage();
   if (!page) return;
 
   event.preventDefault();
@@ -615,8 +635,6 @@ function startStroke(event) {
     beautified: false,
     points: [getPoint(event)],
   };
-  page.strokes.push(state.activeStroke);
-  page.redoStack = [];
   queueRender();
 }
 
@@ -647,11 +665,17 @@ function extendStroke(event) {
 
 function finishStroke(event) {
   if (!state.isDrawing || state.activePointerId !== event.pointerId) return;
+  const page = getSelectedPage();
+  if (page && state.activeStroke && state.activeStroke.points.length) {
+    page.strokes.push(cloneStroke(state.activeStroke));
+    page.redoStack = [];
+  }
   state.isDrawing = false;
   state.activePointerId = null;
   state.activeStroke = null;
-  scheduleSave();
-  renderAll();
+  saveNow();
+  renderCanvas();
+  setStatus("Stroke saved.");
 }
 
 function undoStroke() {
@@ -744,15 +768,17 @@ function renderPalettePicker() {
       <button class="palette-card ${active ? "is-active" : ""}" data-action="select-palette" data-palette-id="${palette.id}">
         <span class="palette-title">${escapeHtml(palette.name)}</span>
         <span class="palette-samples">
-          ${palette.colors.map((color) => `<span class="sample" style="background:${color}"></span>`).join("")}
+          <span class="sample" style="background:${palette.bg}"></span>
+          <span class="sample" style="background:${palette.line}"></span>
+          <span class="sample" style="background:${palette.margin}"></span>
+          <span class="sample" style="background:${palette.border}"></span>
         </span>
       </button>`;
   }).join("");
 }
 
 function renderColorSwatches() {
-  const palette = getCurrentPalette();
-  DOM.colorSwatches.innerHTML = palette.colors
+  DOM.colorSwatches.innerHTML = INK_COLORS
     .map(
       (color) => `
         <button class="color-swatch ${state.selectedColor === color ? "is-active" : ""}" data-action="select-color" data-color="${color}" title="${color}" style="--swatch:${color}"></button>`,
@@ -762,13 +788,14 @@ function renderColorSwatches() {
 
 function renderToolbarState() {
   const project = getSelectedProject();
-  const page = getCurrentPage();
+  const page = getSelectedPage();
   DOM.projectTitle.textContent = project ? project.name : "No project";
   DOM.pageTitle.textContent = page ? page.name : "No page";
   DOM.brushSize.value = String(state.brushSize);
   DOM.penBtn.classList.toggle("is-active", state.mode === "pen");
   DOM.eraserBtn.classList.toggle("is-active", state.mode === "eraser");
   DOM.appShell.classList.toggle("sidebar-open", state.sidebarOpen);
+  DOM.appShell.classList.toggle("sidebar-collapsed", !state.sidebarOpen);
 }
 
 function renderAllSidebar() {
@@ -779,6 +806,12 @@ function renderAllSidebar() {
 
 function renderAll() {
   ensureWorkspace();
+
+  const page = getSelectedPage();
+  const themeId = page?.themeId || state.selectedPaletteId;
+  state.selectedPaletteId = themeId;
+  applyPaperTheme(themeId);
+
   renderAllSidebar();
   renderColorSwatches();
   renderCanvas();
@@ -931,3 +964,5 @@ function boot() {
 // - Transform rough stroke input into personalized clean handwriting.
 
 boot();
+
+
