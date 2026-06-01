@@ -4,6 +4,16 @@ const THEME_KEY = "simple-notebook-theme-v1";
 
 const INK_COLORS = ["#1d4ed8", "#ec4899", "#38bdf8", "#f97316", "#111827"];
 
+const INK_ENGINE = {
+  liveDelayMs: 18,
+  liveSmoothingPasses: 1,
+  refineSmoothingPasses: 4,
+  minPointDistance: 0.65,
+  lineStraightenStrength: 0.32,
+  curveSmoothStrength: 0.18,
+  maxRowShift: 8,
+};
+
 const PALETTES = [
   { id: "soft-pastel", name: "Soft Pastel", bg: "#fffaf0", line: "rgba(103, 139, 196, 0.14)", margin: "rgba(240, 174, 196, 0.16)", border: "rgba(141, 153, 182, 0.18)", shadow: "0 16px 40px rgba(31, 41, 55, 0.08)", texture: "rgba(255,255,255,0.34)" },
   { id: "warm-coffee", name: "Warm Coffee", bg: "#f8efe1", line: "rgba(114, 85, 55, 0.16)", margin: "rgba(146, 98, 55, 0.18)", border: "rgba(125, 93, 63, 0.2)", shadow: "0 16px 40px rgba(74, 54, 38, 0.12)", texture: "rgba(255,255,255,0.24)" },
@@ -86,12 +96,19 @@ function clonePoint(point) {
 }
 
 function cloneStroke(stroke) {
+  const rawPoints = Array.isArray(stroke.rawPoints)
+    ? stroke.rawPoints.map(clonePoint)
+    : Array.isArray(stroke.points)
+      ? stroke.points.map(clonePoint)
+      : [];
+
   return {
     mode: stroke.mode === "eraser" ? "eraser" : "pen",
     color: stroke.color,
     size: Number(stroke.size) || 4,
     beautified: Boolean(stroke.beautified),
-    points: Array.isArray(stroke.points) ? stroke.points.map(clonePoint) : [],
+    rawPoints,
+    points: Array.isArray(stroke.points) ? stroke.points.map(clonePoint) : rawPoints.map(clonePoint),
   };
 }
 
@@ -485,9 +502,15 @@ function getCurrentPage() {
   return getSelectedPage();
 }
 
-function shouldStorePoint(previous, nextPoint) {
+function shouldStorePoint(previous, nextPoint, minimumDistance = INK_ENGINE.minPointDistance) {
   if (!previous) return true;
-  return Math.hypot(nextPoint.x - previous.x, nextPoint.y - previous.y) >= Math.max(0.5, state.brushSize * 0.08);
+  return Math.hypot(nextPoint.x - previous.x, nextPoint.y - previous.y) >= Math.max(minimumDistance, state.brushSize * 0.06);
+}
+
+function getStrokePoints(stroke) {
+  if (Array.isArray(stroke.points) && stroke.points.length) return stroke.points;
+  if (Array.isArray(stroke.rawPoints) && stroke.rawPoints.length) return stroke.rawPoints;
+  return [];
 }
 
 function smoothPoints(points, passes = 1) {
@@ -500,9 +523,9 @@ function smoothPoints(points, passes = 1) {
       const point = current[index];
       const after = current[index + 1];
       next.push({
-        x: previous.x * 0.2 + point.x * 0.6 + after.x * 0.2,
-        y: previous.y * 0.2 + point.y * 0.6 + after.y * 0.2,
-        pressure: previous.pressure * 0.2 + point.pressure * 0.6 + after.pressure * 0.2,
+        x: previous.x * 0.18 + point.x * 0.64 + after.x * 0.18,
+        y: previous.y * 0.18 + point.y * 0.64 + after.y * 0.18,
+        pressure: previous.pressure * 0.18 + point.pressure * 0.64 + after.pressure * 0.18,
         time: point.time,
       });
     }
@@ -512,6 +535,20 @@ function smoothPoints(points, passes = 1) {
   return current;
 }
 
+function simplifyClosePoints(points, minimumDistance = 0.8) {
+  if (points.length <= 2) return points.map(clonePoint);
+  const simplified = [clonePoint(points[0])];
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const point = points[index];
+    const previous = simplified[simplified.length - 1];
+    if (Math.hypot(point.x - previous.x, point.y - previous.y) >= minimumDistance) {
+      simplified.push(clonePoint(point));
+    }
+  }
+  simplified.push(clonePoint(points[points.length - 1]));
+  return simplified;
+}
+
 function midpoint(a, b) {
   return {
     x: (a.x + b.x) / 2,
@@ -519,8 +556,64 @@ function midpoint(a, b) {
   };
 }
 
+function lerp(a, b, amount) {
+  return a + (b - a) * amount;
+}
+
+function distancePointToLine(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSq = dx * dx + dy * dy;
+  if (!lengthSq) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq));
+  const projection = { x: start.x + t * dx, y: start.y + t * dy };
+  return Math.hypot(point.x - projection.x, point.y - projection.y);
+}
+
+function straightenIfAlmostLine(points, strength = INK_ENGINE.lineStraightenStrength) {
+  if (points.length < 4) return points.map(clonePoint);
+  const start = points[0];
+  const end = points[points.length - 1];
+  const length = Math.hypot(end.x - start.x, end.y - start.y);
+  if (length < 18) return points.map(clonePoint);
+
+  const totalTravel = points.slice(1).reduce((sum, point, index) => {
+    const previous = points[index];
+    return sum + Math.hypot(point.x - previous.x, point.y - previous.y);
+  }, 0);
+  const directness = length / Math.max(totalTravel, 1);
+  const averageWobble = points.reduce((sum, point) => sum + distancePointToLine(point, start, end), 0) / points.length;
+
+  if (directness < 0.72 || averageWobble > Math.max(7, length * 0.055)) {
+    return points.map(clonePoint);
+  }
+
+  return points.map((point, index) => {
+    const t = index / Math.max(points.length - 1, 1);
+    const lineX = lerp(start.x, end.x, t);
+    const lineY = lerp(start.y, end.y, t);
+    return {
+      ...point,
+      x: lerp(point.x, lineX, strength),
+      y: lerp(point.y, lineY, strength),
+    };
+  });
+}
+
+function getPointWidth(point, previous, baseWidth, mode) {
+  const pressure = point.pressure ?? 0.5;
+  const dt = Math.max(8, (point.time ?? 0) - (previous?.time ?? point.time ?? 0));
+  const distance = previous ? Math.hypot(point.x - previous.x, point.y - previous.y) : 0;
+  const speed = distance / dt;
+  const speedFactor = mode === "eraser" ? 1 : Math.max(0.72, Math.min(1.18, 1.08 - speed * 0.42));
+  const pressureFactor = mode === "eraser" ? 1 : 0.74 + pressure * 0.58;
+  return Math.max(0.85, baseWidth * speedFactor * pressureFactor);
+}
+
 function renderStroke(stroke, targetContext = context) {
-  const points = smoothPoints(stroke.points, stroke.beautified ? 3 : 1);
+  const sourcePoints = getStrokePoints(stroke);
+  const passes = stroke.beautified ? 2 : INK_ENGINE.liveSmoothingPasses;
+  const points = simplifyClosePoints(smoothPoints(sourcePoints, passes), 0.55);
   if (!points.length) return;
 
   targetContext.save();
@@ -531,37 +624,33 @@ function renderStroke(stroke, targetContext = context) {
   targetContext.fillStyle = stroke.color;
 
   const baseWidth = stroke.mode === "eraser" ? stroke.size * 2.4 : stroke.size;
-  const avgPressure = points.reduce((sum, point) => sum + (point.pressure ?? 0.5), 0) / points.length;
-  targetContext.lineWidth = Math.max(1, baseWidth * (0.82 + avgPressure * 0.45));
 
   if (points.length === 1) {
     const point = points[0];
+    const width = getPointWidth(point, null, baseWidth, stroke.mode);
     targetContext.beginPath();
-    targetContext.arc(point.x, point.y, targetContext.lineWidth / 2, 0, Math.PI * 2);
+    targetContext.arc(point.x, point.y, width / 2, 0, Math.PI * 2);
     targetContext.fill();
     targetContext.restore();
     return;
   }
 
-  if (points.length === 2) {
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const before = points[index - 2] || previous;
+    const control = previous;
+    const start = midpoint(before, previous);
+    const end = midpoint(previous, current);
+    const width = getPointWidth(current, previous, baseWidth, stroke.mode);
+
+    targetContext.lineWidth = width;
     targetContext.beginPath();
-    targetContext.moveTo(points[0].x, points[0].y);
-    targetContext.lineTo(points[1].x, points[1].y);
+    targetContext.moveTo(start.x, start.y);
+    targetContext.quadraticCurveTo(control.x, control.y, end.x, end.y);
     targetContext.stroke();
-    targetContext.restore();
-    return;
   }
 
-  targetContext.beginPath();
-  targetContext.moveTo(points[0].x, points[0].y);
-  for (let index = 1; index < points.length - 1; index += 1) {
-    const current = points[index];
-    const next = midpoint(current, points[index + 1]);
-    targetContext.quadraticCurveTo(current.x, current.y, next.x, next.y);
-  }
-  const last = points[points.length - 1];
-  targetContext.lineTo(last.x, last.y);
-  targetContext.stroke();
   targetContext.restore();
 }
 
@@ -607,24 +696,91 @@ function queueRender() {
 }
 
 function applyBeautifyToStroke(stroke) {
-  if (stroke.mode !== "pen" || stroke.points.length < 2) {
-    return cloneStroke(stroke);
+  const cloned = cloneStroke(stroke);
+  if (cloned.mode !== "pen" || cloned.rawPoints.length < 2) {
+    return cloned;
   }
+
+  const rawPoints = cloned.rawPoints.map(clonePoint);
+  let refinedPoints = simplifyClosePoints(rawPoints, 0.75);
+  refinedPoints = smoothPoints(refinedPoints, INK_ENGINE.refineSmoothingPasses);
+  refinedPoints = straightenIfAlmostLine(refinedPoints);
+  refinedPoints = smoothPoints(refinedPoints, 1);
+
   return {
-    ...cloneStroke(stroke),
+    ...cloned,
     beautified: true,
-    points: smoothPoints(stroke.points, 3),
+    rawPoints,
+    points: refinedPoints,
   };
+}
+
+function getStrokeBounds(stroke) {
+  const points = getStrokePoints(stroke);
+  if (!points.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+  return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY, centerY: (minY + maxY) / 2 };
+}
+
+function normalizeCloseStrokeRows(strokes) {
+  const penStrokeEntries = strokes
+    .map((stroke, index) => ({ stroke, index, bounds: getStrokeBounds(stroke) }))
+    .filter((entry) => entry.stroke.mode === "pen" && entry.bounds && entry.bounds.height < 90);
+
+  if (penStrokeEntries.length < 3) return strokes;
+
+  const rows = [];
+  for (const entry of penStrokeEntries) {
+    const row = rows.find((candidate) => Math.abs(candidate.centerY - entry.bounds.centerY) < 26);
+    if (row) {
+      row.entries.push(entry);
+      row.centerY = row.entries.reduce((sum, item) => sum + item.bounds.centerY, 0) / row.entries.length;
+    } else {
+      rows.push({ centerY: entry.bounds.centerY, entries: [entry] });
+    }
+  }
+
+  rows.sort((a, b) => a.centerY - b.centerY);
+  if (rows.length < 2) return strokes;
+
+  const gaps = rows.slice(1).map((row, index) => row.centerY - rows[index].centerY).filter((gap) => gap > 18 && gap < 80);
+  if (!gaps.length) return strokes;
+  const targetGap = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+
+  const shifts = new Map();
+  let expectedY = rows[0].centerY;
+  rows.forEach((row, rowIndex) => {
+    if (rowIndex > 0) expectedY += targetGap;
+    const shift = Math.max(-INK_ENGINE.maxRowShift, Math.min(INK_ENGINE.maxRowShift, expectedY - row.centerY));
+    for (const entry of row.entries) shifts.set(entry.index, shift);
+  });
+
+  return strokes.map((stroke, index) => {
+    const shift = shifts.get(index) || 0;
+    if (!shift || stroke.mode !== "pen") return stroke;
+    const moved = cloneStroke(stroke);
+    moved.points = moved.points.map((point) => ({ ...point, y: point.y + shift }));
+    return moved;
+  });
 }
 
 function beautifyCurrentPage() {
   const page = getCurrentPage();
   if (!page) return;
-  page.strokes = page.strokes.map(applyBeautifyToStroke);
+  page.strokes = normalizeCloseStrokeRows(page.strokes.map(applyBeautifyToStroke));
   page.redoStack = [];
   scheduleSave();
   renderAll();
-  setStatus("Creamy Handwriting applied.");
+  setStatus("Refined handwriting. Raw strokes are still saved for future AI cleanup.");
 }
 
 function redrawWithPaper(targetContext, width, height, strokes) {
@@ -718,6 +874,7 @@ function startStroke(event) {
 
   event.preventDefault();
   DOM.board.setPointerCapture(event.pointerId);
+  const firstPoint = getPoint(event);
   state.isDrawing = true;
   state.activePointerId = event.pointerId;
   state.activeStroke = {
@@ -725,7 +882,8 @@ function startStroke(event) {
     color: state.mode === "eraser" ? "#ffffff" : state.selectedColor,
     size: state.brushSize,
     beautified: false,
-    points: [getPoint(event)],
+    rawPoints: [firstPoint],
+    points: [firstPoint],
   };
   queueRender();
 }
@@ -741,25 +899,48 @@ function getPoint(event) {
   };
 }
 
+function getEventPoints(event) {
+  const sourceEvents = typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [event];
+  return sourceEvents.map(getPoint);
+}
+
+function updateLiveStrokePoints() {
+  if (!state.activeStroke) return;
+  const rawPoints = state.activeStroke.rawPoints || state.activeStroke.points || [];
+  const now = performance.now();
+  let delayedPoints = rawPoints.filter((point) => now - point.time >= INK_ENGINE.liveDelayMs);
+  if (delayedPoints.length < 2) delayedPoints = rawPoints.slice(0, Math.min(rawPoints.length, 2));
+  state.activeStroke.points = smoothPoints(simplifyClosePoints(delayedPoints, 0.55), INK_ENGINE.liveSmoothingPasses);
+}
+
 function extendStroke(event) {
   if (!state.isDrawing || state.activePointerId !== event.pointerId || !state.activeStroke) return;
   event.preventDefault();
-  const nextPoint = getPoint(event);
-  const points = state.activeStroke.points;
-  const lastPoint = points[points.length - 1];
-  if (shouldStorePoint(lastPoint, nextPoint)) {
-    points.push(nextPoint);
-  } else {
-    points[points.length - 1] = nextPoint;
+  const rawPoints = state.activeStroke.rawPoints || state.activeStroke.points;
+  for (const nextPoint of getEventPoints(event)) {
+    const lastPoint = rawPoints[rawPoints.length - 1];
+    if (shouldStorePoint(lastPoint, nextPoint)) {
+      rawPoints.push(nextPoint);
+    } else if (rawPoints.length) {
+      rawPoints[rawPoints.length - 1] = nextPoint;
+    }
   }
+  state.activeStroke.rawPoints = rawPoints;
+  updateLiveStrokePoints();
   queueRender();
 }
 
 function finishStroke(event) {
   if (!state.isDrawing || state.activePointerId !== event.pointerId) return;
   const page = getSelectedPage();
-  if (page && state.activeStroke && state.activeStroke.points.length) {
-    page.strokes.push(cloneStroke(state.activeStroke));
+  if (page && state.activeStroke && (state.activeStroke.rawPoints?.length || state.activeStroke.points?.length)) {
+    const rawPoints = (state.activeStroke.rawPoints || state.activeStroke.points).map(clonePoint);
+    const finalStroke = cloneStroke({
+      ...state.activeStroke,
+      rawPoints,
+      points: smoothPoints(simplifyClosePoints(rawPoints, 0.55), 1),
+    });
+    page.strokes.push(finalStroke);
     page.redoStack = [];
   }
   state.isDrawing = false;
@@ -767,7 +948,7 @@ function finishStroke(event) {
   state.activeStroke = null;
   saveNow();
   renderCanvas();
-  setStatus("Stroke saved.");
+  setStatus("Stroke saved as raw points + smooth ink.");
 }
 
 function undoStroke() {
@@ -1060,7 +1241,7 @@ function boot() {
 }
 
 // Future AI hooks:
-// - Replace beautifyCurrentPage() with a handwriting beautification model.
+// - beautifyCurrentPage() is now the local refinement stage; replace it later with a real ML handwriting model.
 // - Add handwriting recognition for searchable notes.
 // - Learn the user's personal writing style and recreate it cleanly.
 // - Transform rough stroke input into personalized clean handwriting.

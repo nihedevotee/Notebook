@@ -1370,3 +1370,57 @@ button:hover {
     box-shadow: none;
   }
 }
+
+
+/* ===== Full-screen writing canvas + Smart Script-inspired controls ===== */
+.workspace {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.paper-shell {
+  min-height: 0;
+  display: grid;
+}
+
+.paper-frame {
+  min-height: calc(100vh - 150px);
+  height: 100%;
+}
+
+#beautifyBtn {
+  background: linear-gradient(135deg, var(--accent-soft), var(--surface-soft));
+  border-color: var(--border-strong);
+}
+
+#beautifyBtn::before {
+  content: "✨";
+}
+
+canvas {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (min-width: 921px) {
+  body {
+    padding: 10px;
+  }
+
+  .app-shell {
+    min-height: calc(100vh - 20px);
+  }
+
+  .toolbar {
+    padding: 10px 12px;
+  }
+
+  .paper-frame {
+    min-height: calc(100vh - 132px);
+  }
+}
+
+@media (max-width: 920px) {
+  .paper-frame {
+    min-height: calc(100vh - 220px);
+  }
+}
