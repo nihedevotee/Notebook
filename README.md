@@ -77,3 +77,11 @@ This version adds:
   * Download as PDF using the browser print dialog / Save as PDF
   * High-resolution PNG export for the current notebook page
 * Softer spacing, shadows, rounded corners, and modern SaaS-style visual polish
+
+
+## Added in this update
+
+* PDF export now asks whether to export only the current page or the whole project when the current project has multiple pages.
+* Added multiple writing tools: Pen, Brush, Oil Pastel, Marker, Pencil, and Highlighter.
+* Added picture upload for a notebook page. The picture sits under the canvas, so you can write directly over the picture area.
+* PNG and PDF exports include the uploaded picture and the handwriting on top.

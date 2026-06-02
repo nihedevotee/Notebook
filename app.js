@@ -4,6 +4,15 @@ const THEME_KEY = "simple-notebook-theme-v1";
 
 const INK_COLORS = ["#1d4ed8", "#ec4899", "#38bdf8", "#f97316", "#111827"];
 
+const TOOL_PRESETS = {
+  pen: { label: "Pen", widthMultiplier: 1, opacity: 1, composite: "source-over", smoothingPasses: 1 },
+  brush: { label: "Brush", widthMultiplier: 1.55, opacity: 0.9, composite: "source-over", smoothingPasses: 2 },
+  oilPastel: { label: "Oil Pastel", widthMultiplier: 1.85, opacity: 0.72, composite: "source-over", smoothingPasses: 1, textured: true },
+  marker: { label: "Marker", widthMultiplier: 1.35, opacity: 0.78, composite: "source-over", smoothingPasses: 1 },
+  pencil: { label: "Pencil", widthMultiplier: 0.78, opacity: 0.82, composite: "source-over", smoothingPasses: 1, textured: true },
+  highlighter: { label: "Highlighter", widthMultiplier: 3.2, opacity: 0.28, composite: "multiply", smoothingPasses: 1 },
+};
+
 const INK_ENGINE = {
   liveDelayMs: 18,
   liveSmoothingPasses: 1,
@@ -35,6 +44,7 @@ const DOM = {
   projectTitle: document.getElementById("projectTitle"),
   pageTitle: document.getElementById("pageTitle"),
   colorSwatches: document.getElementById("colorSwatches"),
+  toolSelect: document.getElementById("toolSelect"),
   brushSize: document.getElementById("brushSize"),
   paperFrame: document.querySelector(".paper-frame"),
   penBtn: document.getElementById("penBtn"),
@@ -43,12 +53,20 @@ const DOM = {
   redoBtn: document.getElementById("redoBtn"),
   beautifyBtn: document.getElementById("beautifyBtn"),
   saveBtn: document.getElementById("saveBtn"),
+  uploadImageBtn: document.getElementById("uploadImageBtn"),
+  removeImageBtn: document.getElementById("removeImageBtn"),
+  pictureInput: document.getElementById("pictureInput"),
+  imageLayer: document.getElementById("imageLayer"),
   themeToggle: document.getElementById("themeToggle"),
   exportMenu: document.getElementById("exportMenu"),
   exportBtn: document.getElementById("exportBtn"),
   clearBtn: document.getElementById("clearBtn"),
   board: document.getElementById("board"),
   status: document.getElementById("status"),
+pdfChoiceModal: document.getElementById("pdfChoiceModal"),
+pdfThisPageBtn: document.getElementById("pdfThisPageBtn"),
+pdfWholeProjectBtn: document.getElementById("pdfWholeProjectBtn"),
+pdfCancelBtn: document.getElementById("pdfCancelBtn"),
 };
 
 const context = DOM.board.getContext("2d");
@@ -103,7 +121,7 @@ function cloneStroke(stroke) {
       : [];
 
   return {
-    mode: stroke.mode === "eraser" ? "eraser" : "pen",
+    mode: stroke.mode === "eraser" ? "eraser" : (TOOL_PRESETS[stroke.mode] ? stroke.mode : "pen"),
     color: stroke.color,
     size: Number(stroke.size) || 4,
     beautified: Boolean(stroke.beautified),
@@ -119,6 +137,7 @@ function createDefaultPage(name = "Page 1") {
     themeId: "soft-pastel",
     strokes: [],
     redoStack: [],
+    backgroundImage: null,
   };
 }
 
@@ -160,6 +179,7 @@ function ensureWorkspace() {
       page.themeId = PALETTES.some((palette) => palette.id === page.themeId) ? page.themeId : "soft-pastel";
       page.strokes = Array.isArray(page.strokes) ? page.strokes : [];
       page.redoStack = Array.isArray(page.redoStack) ? page.redoStack : [];
+      page.backgroundImage = page.backgroundImage && page.backgroundImage.dataUrl ? page.backgroundImage : null;
     }
   }
 
@@ -181,7 +201,7 @@ function ensureWorkspace() {
   }
 
   state.brushSize = Number(state.brushSize) || 4;
-  state.mode = state.mode === "eraser" ? "eraser" : "pen";
+  state.mode = state.mode === "eraser" ? "eraser" : (TOOL_PRESETS[state.mode] ? state.mode : "pen");
 }
 
 function serializeWorkspace() {
@@ -258,7 +278,7 @@ function loadWorkspace() {
     state.selectedPaletteId = parsed.selectedPaletteId || state.selectedPaletteId;
     state.selectedColor = parsed.selectedColor || state.selectedColor;
     state.brushSize = Number(parsed.brushSize) || state.brushSize;
-    state.mode = parsed.mode === "eraser" ? "eraser" : "pen";
+    state.mode = parsed.mode === "eraser" ? "eraser" : (TOOL_PRESETS[parsed.mode] ? parsed.mode : "pen");
     state.sidebarOpen = typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : window.innerWidth > 980;
     state.theme = parsed.theme || localStorage.getItem(THEME_KEY) || "light";
   } catch {
@@ -308,9 +328,10 @@ function setSelectedColor(color) {
 }
 
 function setMode(mode) {
-  state.mode = mode === "eraser" ? "eraser" : "pen";
+  state.mode = mode === "eraser" ? "eraser" : (TOOL_PRESETS[mode] ? mode : "pen");
   scheduleSave();
   renderAll();
+  setStatus(state.mode === "eraser" ? "Eraser selected." : `${TOOL_PRESETS[state.mode].label} selected.`);
 }
 
 function selectProject(projectId) {
@@ -610,20 +631,42 @@ function getPointWidth(point, previous, baseWidth, mode) {
   return Math.max(0.85, baseWidth * speedFactor * pressureFactor);
 }
 
+function drawCurvePass(points, stroke, targetContext, baseWidth, jitter = 0) {
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const before = points[index - 2] || previous;
+    const control = previous;
+    const start = midpoint(before, previous);
+    const end = midpoint(previous, current);
+    const offsetX = jitter ? Math.sin(index * 12.9898 + stroke.size) * jitter : 0;
+    const offsetY = jitter ? Math.cos(index * 78.233 + stroke.size) * jitter : 0;
+    const width = getPointWidth(current, previous, baseWidth, stroke.mode);
+
+    targetContext.lineWidth = width;
+    targetContext.beginPath();
+    targetContext.moveTo(start.x + offsetX, start.y + offsetY);
+    targetContext.quadraticCurveTo(control.x + offsetX, control.y + offsetY, end.x + offsetX, end.y + offsetY);
+    targetContext.stroke();
+  }
+}
+
 function renderStroke(stroke, targetContext = context) {
   const sourcePoints = getStrokePoints(stroke);
-  const passes = stroke.beautified ? 2 : INK_ENGINE.liveSmoothingPasses;
+  const preset = TOOL_PRESETS[stroke.mode] || TOOL_PRESETS.pen;
+  const passes = stroke.beautified ? 2 : (preset.smoothingPasses || INK_ENGINE.liveSmoothingPasses);
   const points = simplifyClosePoints(smoothPoints(sourcePoints, passes), 0.55);
   if (!points.length) return;
 
   targetContext.save();
-  targetContext.globalCompositeOperation = stroke.mode === "eraser" ? "destination-out" : "source-over";
+  targetContext.globalCompositeOperation = stroke.mode === "eraser" ? "destination-out" : (preset.composite || "source-over");
+  targetContext.globalAlpha = stroke.mode === "eraser" ? 1 : (preset.opacity ?? 1);
   targetContext.lineCap = "round";
   targetContext.lineJoin = "round";
   targetContext.strokeStyle = stroke.color;
   targetContext.fillStyle = stroke.color;
 
-  const baseWidth = stroke.mode === "eraser" ? stroke.size * 2.4 : stroke.size;
+  const baseWidth = stroke.mode === "eraser" ? stroke.size * 2.4 : stroke.size * (preset.widthMultiplier || 1);
 
   if (points.length === 1) {
     const point = points[0];
@@ -635,20 +678,13 @@ function renderStroke(stroke, targetContext = context) {
     return;
   }
 
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1];
-    const current = points[index];
-    const before = points[index - 2] || previous;
-    const control = previous;
-    const start = midpoint(before, previous);
-    const end = midpoint(previous, current);
-    const width = getPointWidth(current, previous, baseWidth, stroke.mode);
+  drawCurvePass(points, stroke, targetContext, baseWidth, 0);
 
-    targetContext.lineWidth = width;
-    targetContext.beginPath();
-    targetContext.moveTo(start.x, start.y);
-    targetContext.quadraticCurveTo(control.x, control.y, end.x, end.y);
-    targetContext.stroke();
+  if (preset.textured) {
+    targetContext.globalAlpha = Math.max(0.16, (preset.opacity ?? 1) * 0.42);
+    targetContext.lineWidth = Math.max(0.7, baseWidth * 0.36);
+    drawCurvePass(points, stroke, targetContext, Math.max(0.7, baseWidth * 0.42), 0.9);
+    drawCurvePass(points, stroke, targetContext, Math.max(0.7, baseWidth * 0.28), -0.7);
   }
 
   targetContext.restore();
@@ -670,6 +706,63 @@ function renderPaperBackground(targetContext, width, height, themeId) {
     targetContext.stroke();
   }
   targetContext.restore();
+}
+
+function renderImageLayer() {
+  const page = getCurrentPage();
+  const image = page?.backgroundImage;
+  if (!DOM.imageLayer) return;
+  if (!image?.dataUrl) {
+    DOM.imageLayer.style.backgroundImage = "";
+    DOM.imageLayer.hidden = true;
+    return;
+  }
+  DOM.imageLayer.hidden = false;
+  DOM.imageLayer.style.backgroundImage = `url("${image.dataUrl}")`;
+  DOM.imageLayer.style.backgroundSize = image.fit || "contain";
+  DOM.imageLayer.style.backgroundPosition = "center";
+  DOM.imageLayer.style.backgroundRepeat = "no-repeat";
+}
+
+function loadImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = dataUrl;
+  });
+}
+
+async function drawPageImage(targetContext, page, width, height) {
+  const imageData = page?.backgroundImage;
+  if (!imageData?.dataUrl) return;
+  try {
+    const image = await loadImage(imageData.dataUrl);
+    const imageRatio = image.naturalWidth / image.naturalHeight;
+    const frameRatio = width / height;
+    let drawWidth = width;
+    let drawHeight = height;
+    if ((imageData.fit || "contain") === "contain") {
+      if (imageRatio > frameRatio) {
+        drawHeight = width / imageRatio;
+      } else {
+        drawWidth = height * imageRatio;
+      }
+    } else if ((imageData.fit || "contain") === "cover") {
+      if (imageRatio > frameRatio) {
+        drawWidth = height * imageRatio;
+      } else {
+        drawHeight = width / imageRatio;
+      }
+    }
+    const drawX = (width - drawWidth) / 2;
+    const drawY = (height - drawHeight) / 2;
+    targetContext.save();
+    targetContext.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    targetContext.restore();
+  } catch {
+    setStatus("Could not include the uploaded picture in export.");
+  }
 }
 
 function renderCanvas() {
@@ -697,7 +790,7 @@ function queueRender() {
 
 function applyBeautifyToStroke(stroke) {
   const cloned = cloneStroke(stroke);
-  if (cloned.mode !== "pen" || cloned.rawPoints.length < 2) {
+  if (cloned.mode === "eraser" || cloned.rawPoints.length < 2) {
     return cloned;
   }
 
@@ -734,7 +827,7 @@ function getStrokeBounds(stroke) {
 function normalizeCloseStrokeRows(strokes) {
   const penStrokeEntries = strokes
     .map((stroke, index) => ({ stroke, index, bounds: getStrokeBounds(stroke) }))
-    .filter((entry) => entry.stroke.mode === "pen" && entry.bounds && entry.bounds.height < 90);
+    .filter((entry) => entry.stroke.mode !== "eraser" && entry.bounds && entry.bounds.height < 90);
 
   if (penStrokeEntries.length < 3) return strokes;
 
@@ -766,7 +859,7 @@ function normalizeCloseStrokeRows(strokes) {
 
   return strokes.map((stroke, index) => {
     const shift = shifts.get(index) || 0;
-    if (!shift || stroke.mode !== "pen") return stroke;
+    if (!shift || stroke.mode === "eraser") return stroke;
     const moved = cloneStroke(stroke);
     moved.points = moved.points.map((point) => ({ ...point, y: point.y + shift }));
     return moved;
@@ -783,15 +876,25 @@ function beautifyCurrentPage() {
   setStatus("Refined handwriting. Raw strokes are still saved for future AI cleanup.");
 }
 
-function redrawWithPaper(targetContext, width, height, strokes) {
-  renderPaperBackground(targetContext, width, height);
-  for (const stroke of strokes) {
-    renderStroke(stroke, targetContext);
+async function redrawWithPaper(targetContext, width, height, page) {
+  renderPaperBackground(targetContext, width, height, page?.themeId);
+  await drawPageImage(targetContext, page, width, height);
+  const strokeLayer = document.createElement("canvas");
+  const scale = targetContext.getTransform().a || 1;
+  strokeLayer.width = Math.max(1, Math.floor(width * scale));
+  strokeLayer.height = Math.max(1, Math.floor(height * scale));
+  const strokeContext = strokeLayer.getContext("2d");
+  strokeContext.setTransform(scale, 0, 0, scale, 0, 0);
+  for (const stroke of page?.strokes || []) {
+    renderStroke(stroke, strokeContext);
   }
+  targetContext.save();
+  targetContext.setTransform(1, 0, 0, 1, 0, 0);
+  targetContext.drawImage(strokeLayer, 0, 0);
+  targetContext.restore();
 }
 
-function createPageExportCanvas(scale = Math.max(2, window.devicePixelRatio || 1)) {
-  const page = getCurrentPage();
+async function createPageExportCanvas(scale = Math.max(2, window.devicePixelRatio || 1), page = getCurrentPage()) {
   if (!page) return null;
   const rect = DOM.board.getBoundingClientRect();
   const exportCanvas = document.createElement("canvas");
@@ -799,8 +902,7 @@ function createPageExportCanvas(scale = Math.max(2, window.devicePixelRatio || 1
   exportCanvas.height = Math.max(1, Math.floor(rect.height * scale));
   const exportContext = exportCanvas.getContext("2d");
   exportContext.setTransform(scale, 0, 0, scale, 0, 0);
-  renderPaperBackground(exportContext, rect.width, rect.height, page.themeId);
-  for (const stroke of page.strokes) renderStroke(stroke, exportContext);
+  await redrawWithPaper(exportContext, rect.width, rect.height, page);
   return exportCanvas;
 }
 
@@ -808,9 +910,9 @@ function safeFileName(text, fallback = "notebook-page") {
   return (text || fallback).replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || fallback;
 }
 
-function exportPageAsPng() {
+async function exportPageAsPng() {
   const page = getCurrentPage();
-  const canvas = createPageExportCanvas();
+  const canvas = await createPageExportCanvas();
   if (!page || !canvas) return;
   const link = document.createElement("a");
   link.href = canvas.toDataURL("image/png");
@@ -818,48 +920,131 @@ function exportPageAsPng() {
   link.click();
   state.exportMenuOpen = false;
   renderToolbarState();
-  setStatus("Page saved as high-resolution PNG.");
+  setStatus("Current page saved as high-resolution PNG.");
 }
 
-function exportPageAsPdf() {
-  const page = getCurrentPage();
-  const project = getSelectedProject();
-  const canvas = createPageExportCanvas(2);
-  if (!page || !canvas) return;
-  const dataUrl = canvas.toDataURL("image/png");
-  const title = `${project?.name || "Notebook"} — ${page.name || "Page"}`;
-  const printWindow = window.open("", "_blank", "noopener,noreferrer");
-  if (!printWindow) {
-    setStatus("Allow popups, then try PDF export again.");
-    return;
-  }
+function writePdfDocument(printWindow, title, pages) {
+  const date = new Date().toLocaleDateString();
+  const pageMarkup = pages.map((item) => `
+    <section class="sheet">
+      <div class="meta"><div><h1>${escapeHtml(item.pageName)}</h1><span>${escapeHtml(item.projectName)}</span></div><span>${date}</span></div>
+      <img src="${item.dataUrl}" alt="${escapeHtml(item.pageName)}" />
+    </section>`).join("");
+
+  printWindow.document.open();
   printWindow.document.write(`<!doctype html>
 <html>
 <head>
   <title>${escapeHtml(title)}</title>
   <style>
-    @page { size: A4; margin: 14mm; }
+    @page { size: A4; margin: 12mm; }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; color: #111827; background: #f7f7f5; }
-    .sheet { min-height: 100vh; padding: 18px; display: grid; gap: 14px; align-content: start; }
-    .meta { display: flex; justify-content: space-between; align-items: end; gap: 18px; color: #4b5563; font-size: 12px; }
-    h1 { margin: 0; color: #111827; font-size: 18px; }
-    img { width: 100%; height: auto; border-radius: 18px; border: 1px solid rgba(17,24,39,.12); box-shadow: 0 14px 40px rgba(17,24,39,.10); background: #fff; }
-    @media print { body { background: #fff; } .sheet { padding: 0; } img { box-shadow: none; } }
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; color: #111827; background: #fff; }
+    .sheet { min-height: 100vh; padding: 0; display: grid; gap: 10px; align-content: start; break-after: page; page-break-after: always; }
+    .sheet:last-child { break-after: auto; page-break-after: auto; }
+    .meta { display: flex; justify-content: space-between; align-items: end; gap: 18px; color: #4b5563; font-size: 11px; }
+    h1 { margin: 0; color: #111827; font-size: 16px; }
+    img { width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(17,24,39,.12); background: #fff; }
+    @media screen { body { background: #f7f7f5; padding: 18px; } .sheet { background: #fff; border-radius: 14px; padding: 18px; margin: 0 auto 18px; max-width: 920px; box-shadow: 0 16px 42px rgba(17,24,39,.10); } }
   </style>
 </head>
 <body>
-  <main class="sheet">
-    <div class="meta"><div><h1>${escapeHtml(page.name || "Notebook page")}</h1><span>${escapeHtml(project?.name || "Notebook")}</span></div><span>${new Date().toLocaleDateString()}</span></div>
-    <img src="${dataUrl}" alt="${escapeHtml(title)}" />
-  </main>
-  <script>window.addEventListener('load', () => { setTimeout(() => window.print(), 150); });<\/script>
+  ${pageMarkup}
+  <script>window.addEventListener('load', () => { setTimeout(() => { window.focus(); window.print(); }, 250); });<\/script>
 </body>
 </html>`);
   printWindow.document.close();
+}
+
+async function exportPageAsPdf(exportType = "page") {
+  const page = getCurrentPage();
+  const project = getSelectedProject();
+  if (!page || !project) return;
+
+  const currentPageOnly = exportType === "page";
+
+  const pagesToExport = currentPageOnly ? [page] : project.pages;
+
+  const title = currentPageOnly
+    ? `${project.name || "Notebook"} — ${page.name || "Page"}`
+    : `${project.name || "Notebook"} — Whole Project`;
+
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    setStatus("Allow popups, then try PDF export again.");
+    return;
+  }
+  printWindow.document.write("<p style='font-family:system-ui;padding:24px'>Preparing PDF pages...</p>");
+
+  const exportPages = [];
+  for (const item of pagesToExport) {
+    const canvas = await createPageExportCanvas(2, item);
+    if (canvas) {
+      exportPages.push({
+        projectName: project.name || "Notebook",
+        pageName: item.name || "Page",
+        dataUrl: canvas.toDataURL("image/png"),
+      });
+    }
+  }
+
+  writePdfDocument(printWindow, title, exportPages);
   state.exportMenuOpen = false;
   renderToolbarState();
-  setStatus("PDF export opened. Choose Save as PDF in the print dialog.");
+  setStatus(currentPageOnly ? "PDF export opened for this page. Choose Save as PDF." : "PDF export opened for the whole project. Choose Save as PDF.");
+}
+function openPdfChoiceModal() {
+  const project = getSelectedProject();
+  if (!project) return;
+
+  // If there is only one page, directly export this page
+  if (project.pages.length <= 1) {
+    exportPageAsPdf("page");
+    return;
+  }
+
+  DOM.pdfChoiceModal.hidden = false;
+  state.exportMenuOpen = false;
+  renderToolbarState();
+}
+
+function closePdfChoiceModal() {
+  DOM.pdfChoiceModal.hidden = true;
+}
+
+function uploadPictureToPage(file) {
+  const page = getCurrentPage();
+  if (!page || !file) return;
+  if (!file.type.startsWith("image/")) {
+    setStatus("Please upload an image file.");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    page.backgroundImage = {
+      dataUrl: reader.result,
+      name: file.name,
+      fit: "contain",
+    };
+    page.redoStack = [];
+    saveNow();
+    renderAll();
+    setStatus("Picture added. You can now write on top of it.");
+  };
+  reader.onerror = () => setStatus("Could not read that picture.");
+  reader.readAsDataURL(file);
+}
+
+function removePagePicture() {
+  const page = getCurrentPage();
+  if (!page?.backgroundImage) {
+    setStatus("No picture on this page.");
+    return;
+  }
+  page.backgroundImage = null;
+  saveNow();
+  renderAll();
+  setStatus("Picture removed. Your handwriting stayed on the page.");
 }
 
 function toggleExportMenu() {
@@ -1066,8 +1251,10 @@ function renderToolbarState() {
   DOM.projectTitle.textContent = project ? project.name : "No project";
   DOM.pageTitle.textContent = page ? page.name : "No page";
   DOM.brushSize.value = String(state.brushSize);
-  DOM.penBtn.classList.toggle("is-active", state.mode === "pen");
+  if (DOM.toolSelect) DOM.toolSelect.value = state.mode === "eraser" ? "pen" : state.mode;
+  DOM.penBtn.classList.toggle("is-active", state.mode !== "eraser");
   DOM.eraserBtn.classList.toggle("is-active", state.mode === "eraser");
+  if (DOM.removeImageBtn) DOM.removeImageBtn.disabled = !page?.backgroundImage;
   DOM.appShell.classList.toggle("sidebar-open", state.sidebarOpen);
   DOM.appShell.classList.toggle("sidebar-collapsed", !state.sidebarOpen);
   DOM.appShell.classList.toggle("export-open", state.exportMenuOpen);
@@ -1091,6 +1278,7 @@ function renderAll() {
 
   renderAllSidebar();
   renderColorSwatches();
+  renderImageLayer();
   renderCanvas();
 }
 
@@ -1170,10 +1358,12 @@ function handleToolbarClick(event) {
     saveNow();
     setStatus("Saved locally.");
   }
+  if (action === "upload-image") DOM.pictureInput?.click();
+  if (action === "remove-image") removePagePicture();
   if (action === "theme-toggle") toggleTheme();
   if (action === "export") toggleExportMenu();
   if (action === "export-png") exportPageAsPng();
-  if (action === "export-pdf") exportPageAsPdf();
+  if (action === "export-pdf") openPdfChoiceModal();
   if (action === "clear") clearCurrentPage();
 }
 
@@ -1187,10 +1377,36 @@ function initEvents() {
     setSelectedColor(button.dataset.color);
   });
 
+  DOM.toolSelect?.addEventListener("change", (event) => {
+    setMode(event.target.value);
+  });
+
   DOM.brushSize.addEventListener("input", (event) => {
     state.brushSize = Number(event.target.value);
     scheduleSave();
   });
+
+    DOM.pictureInput?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    uploadPictureToPage(file);
+    event.target.value = "";
+  });
+
+  DOM.pdfThisPageBtn?.addEventListener("click", () => {
+    closePdfChoiceModal();
+    exportPageAsPdf("page");
+  });
+
+  DOM.pdfWholeProjectBtn?.addEventListener("click", () => {
+    closePdfChoiceModal();
+    exportPageAsPdf("project");
+  });
+
+  DOM.pdfCancelBtn?.addEventListener("click", () => {
+    closePdfChoiceModal();
+  });
+
+  DOM.board.addEventListener("pointerdown", startStroke);
 
   DOM.board.addEventListener("pointerdown", startStroke);
   DOM.board.addEventListener("pointermove", extendStroke);

@@ -1424,3 +1424,110 @@ canvas {
     min-height: calc(100vh - 220px);
   }
 }
+
+
+/* ===== Added: brush selector + picture writing layer ===== */
+.tool-select {
+  min-width: 132px;
+  height: 38px;
+  border-radius: var(--radius-md, 14px);
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--ink);
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 700;
+  outline: none;
+}
+
+.tool-select:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.tool-button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.paper-frame {
+  isolation: isolate;
+}
+
+.image-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+canvas {
+  z-index: 1;
+}
+
+.paper-overlay {
+  z-index: 2;
+}
+
+@media (max-width: 720px) {
+  .tool-select {
+    min-width: 112px;
+  }
+}
+.pdf-choice-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.pdf-choice-modal[hidden] {
+  display: none;
+}
+
+.pdf-choice-card {
+  width: min(420px, 100%);
+  padding: 22px;
+  border-radius: 20px;
+  background: var(--surface-solid, #ffffff);
+  color: var(--ink, #111827);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
+}
+
+.pdf-choice-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.pdf-choice-card p {
+  margin: 0 0 18px;
+  color: var(--muted, #667085);
+}
+
+.pdf-choice-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.pdf-choice-actions button {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  background: var(--ink, #111827);
+  color: var(--bg, #ffffff);
+  font-weight: 700;
+}
+
+.pdf-choice-actions button.ghost {
+  background: transparent;
+  color: var(--ink, #111827);
+}
