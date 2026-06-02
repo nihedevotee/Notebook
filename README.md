@@ -1,87 +1,98 @@
-# Simple Notebook
+# Notebook Workspace
 
-Simple Notebook is a small web-based writing app made for people who like writing on a PC, especially with a mouse or pen tablet.
+A simple web-based notebook app for writing, sketching, and organizing notes into projects and pages.
 
-I made this because I wanted a clean digital notebook where I can write freely, sketch quick ideas, and practice handwriting without needing a heavy app. It is simple right now, but I plan to keep improving it over time and make the writing experience smoother, more natural, and more comfortable.
+## Features
 
-## What it can do
-
-* Write or draw on a notebook-style page
-* Choose different ink colors
-* Change brush size
-* Use pen and eraser tools
+* Create multiple projects
+* Add multiple pages inside each project
+* Write or draw on a notebook-style canvas
+* Use pen, brush, oil pastel, marker, pencil, highlighter, and eraser
+* Change ink color and brush size
+* Refine handwriting with basic smoothing
+* Upload a picture and write on top of it
+* Remove uploaded picture without deleting handwriting
 * Undo and redo strokes
-* Save writing locally in the browser
-* Export the notebook page as a PNG image
-* Use a basic “Creamy Handwriting” feature to smooth rough strokes
+* Light/dark mode
+* Collapsible sidebar
+* Notebook paper palettes
+* Autosave locally in the browser
 
-## Why I made it
+## Export Options
 
-I wanted something that feels like a simple digital notebook for pen tablet users. Most note apps feel either too complicated or too heavy, so this project is my attempt to build a lightweight notebook that feels easy and comfortable to use.
+* Save current page as PNG
+* Download PDF of this page only
+* Download PDF of the whole project
+* Cancel PDF export
 
-The current version is still basic, but it already works for simple handwriting and sketching. Over time, I want to improve the smoothness of the strokes and make the writing feel closer to real handwriting on paper.
+PDF export uses the browser print dialog. Choose **Save as PDF** when the print window opens.
 
-## Future plans
-
-I want to improve this project step by step. Some things I may add later:
-
-* Better handwriting smoothness
-* More natural pen pressure
-* Multiple notebook pages
-* Better save system
-* Better eraser
-* Dark mode
-* Real AI-assisted handwriting cleanup
-* A more polished notebook interface
-
-## How to run
-
-First, install dependencies:
-
-```bash
-npm install
-```
-
-Then start the app:
-
-```bash
-npm start
-```
-
-Open this in your browser:
-
-```text
-http://localhost:3000
-```
-
-## Tech used
+## Tech Used
 
 * HTML
 * CSS
 * JavaScript
 * Node.js
 
-## Note
+## How to Run
 
-This is still an early version. I will keep improving it over time and make it smoother, cleaner, and more useful for people who like writing with a pen tablet or directly on their PC.
+Install dependencies:
 
-## Latest UI refinement
+```bash
+npm install
+```
 
-This version adds:
+Start the app:
 
-* Polished light/dark mode with a toolbar toggle
-* ChatGPT-style collapsible sidebar with desktop collapse and mobile overlay behavior
-* Compact rounded Color Hunt-style palette cards
-* Emoji avatars for projects and pages
-* Export dropdown with:
-  * Download as PDF using the browser print dialog / Save as PDF
-  * High-resolution PNG export for the current notebook page
-* Softer spacing, shadows, rounded corners, and modern SaaS-style visual polish
+```bash
+npm start
+```
 
+Open in browser:
 
-## Added in this update
+```text
+http://localhost:3000
+```
 
-* PDF export now asks whether to export only the current page or the whole project when the current project has multiple pages.
-* Added multiple writing tools: Pen, Brush, Oil Pastel, Marker, Pencil, and Highlighter.
-* Added picture upload for a notebook page. The picture sits under the canvas, so you can write directly over the picture area.
-* PNG and PDF exports include the uploaded picture and the handwriting on top.
+## Port Already in Use Error
+
+If you see:
+
+```text
+EADDRINUSE: address already in use :::3000
+```
+
+It means the app is already running. Open:
+
+```text
+http://localhost:3000
+```
+
+To stop it in PowerShell:
+
+```powershell
+netstat -ano | findstr :3000
+taskkill /PID YOUR_PID_HERE /F
+```
+
+Then start again:
+
+```bash
+npm start
+```
+
+## Project Files
+
+```text
+notebook-app/
+├── index.html
+├── styles.css
+├── app.js
+├── server.js
+├── package.json
+└── README.md
+```
+
+## Notes
+
+This is still an early version. It currently saves data in the browser using local storage. Future improvements may include login, database storage, cloud sync, better image editing, and real AI handwriting cleanup.
