@@ -47,12 +47,13 @@ const DOM = {
   colorSwatches: document.getElementById("colorSwatches"),
   toolSelect: document.getElementById("toolSelect"),
   brushSize: document.getElementById("brushSize"),
+  zoomSlider: document.getElementById("zoomSlider"),
+  zoomValue: document.getElementById("zoomValue"),
   paperFrame: document.querySelector(".paper-frame"),
   penBtn: document.getElementById("penBtn"),
   eraserBtn: document.getElementById("eraserBtn"),
   undoBtn: document.getElementById("undoBtn"),
   redoBtn: document.getElementById("redoBtn"),
-  beautifyBtn: document.getElementById("beautifyBtn"),
   saveBtn: document.getElementById("saveBtn"),
   uploadImageBtn: document.getElementById("uploadImageBtn"),
   removeImageBtn: document.getElementById("removeImageBtn"),
@@ -79,6 +80,7 @@ const state = {
   selectedPaletteId: "soft-pastel",
   selectedColor: INK_COLORS[0],
   brushSize: 4,
+  zoomPercent: 100,
   mode: "pen",
   sidebarOpen: true,
   theme: "light",
@@ -367,7 +369,19 @@ function ensureWorkspace() {
   }
  
   state.brushSize = Number(state.brushSize) || 4;
+  state.zoomPercent = Math.min(150, Math.max(75, Number(state.zoomPercent) || 100));
   state.mode = (state.mode === "eraser" || state.mode === "move") ? state.mode : (TOOL_PRESETS[state.mode] ? state.mode : "pen");
+}
+
+function applyZoom() {
+  const percent = Math.min(150, Math.max(75, Number(state.zoomPercent) || 100));
+  state.zoomPercent = percent;
+  if (DOM.paperFrame) {
+    DOM.paperFrame.style.setProperty("--page-zoom", String(percent / 100));
+  }
+  if (DOM.zoomSlider) DOM.zoomSlider.value = String(percent);
+  if (DOM.zoomValue) DOM.zoomValue.textContent = `${percent}%`;
+  resizeCanvas();
 }
  
 function serializeWorkspace() {
@@ -378,6 +392,7 @@ function serializeWorkspace() {
     selectedPaletteId: state.selectedPaletteId,
     selectedColor: state.selectedColor,
     brushSize: state.brushSize,
+    zoomPercent: state.zoomPercent,
     mode: state.mode,
     sidebarOpen: state.sidebarOpen,
     theme: state.theme,
@@ -444,6 +459,7 @@ function loadWorkspace() {
     state.selectedPaletteId = parsed.selectedPaletteId || state.selectedPaletteId;
     state.selectedColor = parsed.selectedColor || state.selectedColor;
     state.brushSize = Number(parsed.brushSize) || state.brushSize;
+    state.zoomPercent = Number(parsed.zoomPercent) || state.zoomPercent;
     state.mode = (parsed.mode === "eraser" || parsed.mode === "move") ? parsed.mode : (TOOL_PRESETS[parsed.mode] ? parsed.mode : "pen");
     state.sidebarOpen = typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : window.innerWidth > 980;
     state.theme = parsed.theme || localStorage.getItem(THEME_KEY) || "light";
@@ -1148,11 +1164,14 @@ async function redrawWithPaper(targetContext, width, height, page) {
 async function createPageExportCanvas(scale = Math.max(2, window.devicePixelRatio || 1), page = getCurrentPage()) {
   if (!page) return null;
   const rect = DOM.board.getBoundingClientRect();
+  const exportWidth = Math.floor(2100 * scale / 2);
+  const exportHeight = Math.round(exportWidth * 297 / 210);
   const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = Math.max(1, Math.floor(rect.width * scale));
-  exportCanvas.height = Math.max(1, Math.floor(rect.height * scale));
+  exportCanvas.width = Math.max(1, exportWidth);
+  exportCanvas.height = Math.max(1, exportHeight);
   const exportContext = exportCanvas.getContext("2d");
-  exportContext.setTransform(scale, 0, 0, scale, 0, 0);
+  const targetScale = exportCanvas.width / rect.width;
+  exportContext.setTransform(targetScale, 0, 0, targetScale, 0, 0);
   await redrawWithPaper(exportContext, rect.width, rect.height, page);
   return exportCanvas;
 }
@@ -1203,6 +1222,10 @@ function writePdfDocument(printWindow, title, pages) {
   <style>
     @page { size: A4 portrait; margin: 0; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 210mm;
+      height: 297mm;
+    }
     body {
       font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
       background: #f0ede8;
@@ -1210,7 +1233,7 @@ function writePdfDocument(printWindow, title, pages) {
     }
     @media print {
       body { background: #fff; }
-      .sheet { box-shadow: none !important; border-radius: 0 !important; margin: 0 !important; min-height: 100vh; }
+      .sheet { box-shadow: none !important; border-radius: 0 !important; margin: 0 !important; }
     }
     @media screen {
       body { padding: 24px; }
@@ -1225,10 +1248,12 @@ function writePdfDocument(printWindow, title, pages) {
     .sheet {
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
-      padding: 22mm 18mm 18mm;
+      width: 210mm;
+      height: 297mm;
+      padding: 18mm 16mm 14mm;
       break-after: page;
       page-break-after: always;
+      overflow: hidden;
     }
     .sheet:last-child { break-after: auto; page-break-after: auto; }
     .sheet-header {
@@ -1236,9 +1261,9 @@ function writePdfDocument(printWindow, title, pages) {
       align-items: flex-end;
       justify-content: space-between;
       gap: 16px;
-      padding-bottom: 10px;
+      padding-bottom: 6mm;
       border-bottom: 1.5px solid #e5e7eb;
-      margin-bottom: 16px;
+      margin-bottom: 6mm;
       flex-shrink: 0;
     }
     .project-label {
@@ -1254,13 +1279,15 @@ function writePdfDocument(printWindow, title, pages) {
     .sheet-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
     .page-num { font-size: 10px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; }
     .date-stamp { font-size: 11px; color: #6b7280; font-weight: 500; }
-    .canvas-wrap { flex: 1; display: flex; align-items: flex-start; }
+    .canvas-wrap { flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; }
     .canvas-wrap img {
       width: 100%;
-      height: auto;
+      height: 100%;
       display: block;
       border-radius: 10px;
       border: 1px solid rgba(17,24,39,.09);
+      object-fit: contain;
+      object-position: top center;
     }
   </style>
 </head>
@@ -1595,6 +1622,8 @@ function renderToolbarState() {
   DOM.projectTitle.textContent = project ? project.name : "No project";
   DOM.pageTitle.textContent = page ? page.name : "No page";
   DOM.brushSize.value = String(state.brushSize);
+  if (DOM.zoomSlider) DOM.zoomSlider.value = String(state.zoomPercent);
+  if (DOM.zoomValue) DOM.zoomValue.textContent = `${state.zoomPercent}%`;
   if (DOM.toolSelect) DOM.toolSelect.value = (state.mode === "eraser" || state.mode === "move") ? "pen" : state.mode;
   DOM.penBtn.classList.toggle("is-active", state.mode !== "eraser" && state.mode !== "move");
   DOM.eraserBtn.classList.toggle("is-active", state.mode === "eraser");
@@ -1705,7 +1734,6 @@ function handleToolbarClick(event) {
   if (action === "align-right") alignImage("right");
   if (action === "undo") undoStroke();
   if (action === "redo") redoStroke();
-  if (action === "beautify") beautifyCurrentPage();
   if (action === "save") {
     saveNow();
     setStatus("Saved locally.");
@@ -1735,6 +1763,12 @@ function initEvents() {
  
   DOM.brushSize.addEventListener("input", (event) => {
     state.brushSize = Number(event.target.value);
+    scheduleSave();
+  });
+
+  DOM.zoomSlider?.addEventListener("input", (event) => {
+    state.zoomPercent = Number(event.target.value);
+    applyZoom();
     scheduleSave();
   });
  
@@ -1822,6 +1856,7 @@ function boot() {
   }
   applyTheme();
   renderAll();
+  applyZoom();
   resizeCanvas();
   setStatus(state.projects.length ? "Workspace loaded." : "Autosaves locally in this browser.");
   setMode(state.mode);

@@ -1196,11 +1196,16 @@ button:hover {
 
 .paper-shell {
   min-height: 0;
+  overflow: auto;
+  padding: 10px 10px 0;
 }
 
 .paper-frame {
+  width: 100%;
+  min-height: calc(100vh - 150px);
+  height: calc(100vh - 150px);
   border-radius: 28px;
-  min-height: min(74vh, 880px);
+  margin: 0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), var(--paper-shadow), var(--shadow-soft);
 }
 
@@ -1380,11 +1385,15 @@ button:hover {
 .paper-shell {
   min-height: 0;
   display: grid;
+  overflow: auto;
+  padding: 10px 10px 0;
 }
 
 .paper-frame {
+  width: 100%;
   min-height: calc(100vh - 150px);
-  height: 100%;
+  height: calc(100vh - 150px);
+  margin: 0;
 }
 
 #beautifyBtn {
@@ -1416,12 +1425,18 @@ canvas {
 
   .paper-frame {
     min-height: calc(100vh - 132px);
+    height: calc(100vh - 132px);
   }
 }
 
 @media (max-width: 920px) {
+  .paper-shell {
+    padding: 12px 12px 0;
+  }
+
   .paper-frame {
     min-height: calc(100vh - 220px);
+    height: calc(100vh - 220px);
   }
 }
 
@@ -1453,6 +1468,10 @@ canvas {
 
 .paper-frame {
   isolation: isolate;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
 }
 
 .image-layer {
@@ -1477,6 +1496,12 @@ canvas {
   .tool-select {
     min-width: 112px;
   }
+
+  .paper-frame {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+  }
 }
 .pdf-choice-modal {
   position: fixed;
@@ -1486,6 +1511,127 @@ canvas {
   place-items: center;
   padding: 20px;
   background: rgba(0, 0, 0, 0.45);
+}
+
+@media screen {
+  .workspace {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .paper-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: auto;
+    padding: 10px 10px 0;
+  }
+
+  .paper-frame {
+    flex: 1 0 auto;
+    width: 100%;
+    min-height: calc(100vh - 150px);
+    aspect-ratio: 210 / 297;
+    height: auto;
+    margin: 0;
+  }
+
+  @media (min-width: 921px) {
+    .paper-frame {
+      min-height: calc(100vh - 132px);
+      aspect-ratio: 210 / 297;
+    }
+  }
+
+  @media (max-width: 920px) {
+    .paper-shell {
+      padding: 12px 12px 0;
+    }
+
+    .paper-frame {
+      min-height: calc(100vh - 220px);
+      aspect-ratio: 210 / 297;
+    }
+  }
+}
+
+@media print {
+  .workspace {
+    height: auto;
+  }
+
+  .paper-shell {
+    overflow: visible;
+    padding: 0;
+  }
+
+  .paper-frame {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+  }
+}
+
+.zoom-group {
+  min-width: 170px;
+}
+
+.zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.zoom-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+.zoom-slider {
+  width: 110px;
+  accent-color: var(--accent);
+}
+
+.zoom-value {
+  min-width: 44px;
+  text-align: right;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+@media screen {
+  .paper-shell {
+    overflow: auto;
+  }
+
+  .paper-frame {
+    --page-zoom: 1;
+    width: calc(100% * var(--page-zoom));
+    min-width: calc(100% * var(--page-zoom));
+    min-height: calc((100vh - 150px) * var(--page-zoom));
+    height: calc((100vh - 150px) * var(--page-zoom));
+  }
+
+  @media (min-width: 921px) {
+    .paper-frame {
+      min-height: calc((100vh - 132px) * var(--page-zoom));
+      height: calc((100vh - 132px) * var(--page-zoom));
+    }
+  }
+
+  @media (max-width: 920px) {
+    .paper-frame {
+      min-height: calc((100vh - 220px) * var(--page-zoom));
+      height: calc((100vh - 220px) * var(--page-zoom));
+    }
+  }
 }
 
 .pdf-choice-modal[hidden] {
