@@ -1391,8 +1391,8 @@ button:hover {
 
 .paper-frame {
   width: 100%;
-  min-height: calc(100vh - 150px);
-  height: calc(100vh - 150px);
+  min-height: max(calc(100vh - 150px), 1320px);
+  height: max(calc(100vh - 150px), 1320px);
   margin: 0;
 }
 
@@ -1614,22 +1614,20 @@ canvas {
   .paper-frame {
     --page-zoom: 1;
     width: calc(100% * var(--page-zoom));
-    min-width: calc(100% * var(--page-zoom));
-    min-height: calc((100vh - 150px) * var(--page-zoom));
-    height: calc((100vh - 150px) * var(--page-zoom));
+    aspect-ratio: 210 / 297;
+    min-height: max(calc(100vh - 150px), 1320px);
+    height: auto;
   }
 
   @media (min-width: 921px) {
     .paper-frame {
-      min-height: calc((100vh - 132px) * var(--page-zoom));
-      height: calc((100vh - 132px) * var(--page-zoom));
+      min-height: max(calc(100vh - 132px), 1320px);
     }
   }
 
   @media (max-width: 920px) {
     .paper-frame {
-      min-height: calc((100vh - 220px) * var(--page-zoom));
-      height: calc((100vh - 220px) * var(--page-zoom));
+      min-height: max(calc(100vh - 220px), 1220px);
     }
   }
 }
@@ -1676,4 +1674,91 @@ canvas {
 .pdf-choice-actions button.ghost {
   background: transparent;
   color: var(--ink, #111827);
+}
+
+@media screen {
+  .paper-shell {
+    overflow: auto;
+  }
+
+  .paper-frame {
+    --page-zoom: 1;
+    width: calc(100% * var(--page-zoom));
+    min-width: calc(100% * var(--page-zoom));
+    min-height: max(calc((100vh - 150px) * var(--page-zoom)), 1320px);
+    height: max(calc((100vh - 150px) * var(--page-zoom)), 1320px);
+  }
+
+  @media (min-width: 921px) {
+    .paper-frame {
+      min-height: max(calc((100vh - 132px) * var(--page-zoom)), 1320px);
+      height: max(calc((100vh - 132px) * var(--page-zoom)), 1320px);
+    }
+  }
+
+  @media (max-width: 920px) {
+    .paper-frame {
+      min-height: max(calc((100vh - 220px) * var(--page-zoom)), 1220px);
+      height: max(calc((100vh - 220px) * var(--page-zoom)), 1220px);
+    }
+  }
+}
+
+@media print {
+  .paper-shell {
+    overflow: visible;
+    padding: 0;
+  }
+
+  .paper-frame {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+  }
+}
+
+/* ===== TRUE NOTEBOOK ZOOM FIX =====
+   Zoom now changes the visual scale of the whole page content.
+   The saved handwriting/image coordinates stay in the original page space;
+   app.js scales rendering and pointer input so everything remains aligned. */
+@media screen {
+  .paper-shell {
+    overflow: auto !important;
+    align-items: flex-start !important;
+  }
+
+  .paper-frame {
+    --page-zoom: 1;
+    flex: 0 0 auto !important;
+    width: calc(100% * var(--page-zoom)) !important;
+    min-width: calc(100% * var(--page-zoom)) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 210 / 297 !important;
+    transform: none !important;
+    transform-origin: top left !important;
+    background:
+      linear-gradient(to bottom, transparent 0, transparent calc(31px * var(--page-zoom)), var(--paper-line) calc(32px * var(--page-zoom))),
+      linear-gradient(to right, var(--paper-margin) 0 calc(74px * var(--page-zoom)), transparent calc(74px * var(--page-zoom))),
+      linear-gradient(180deg, var(--paper-bg) 0%, var(--paper-bg) 100%) !important;
+    background-size: 100% calc(32px * var(--page-zoom)), 100% 100%, 100% 100% !important;
+  }
+
+  .paper-frame::before {
+    background:
+      radial-gradient(circle at calc(28px * var(--page-zoom)) calc(28px * var(--page-zoom)), var(--paper-margin) 0 calc(2px * var(--page-zoom)), transparent calc(3px * var(--page-zoom))),
+      linear-gradient(90deg, transparent 0 calc(70px * var(--page-zoom)), var(--paper-margin) calc(70px * var(--page-zoom)) calc(71px * var(--page-zoom)), transparent calc(71px * var(--page-zoom))),
+      linear-gradient(135deg, var(--paper-texture), transparent 35%) !important;
+  }
+}
+
+@media print {
+  .paper-frame {
+    --page-zoom: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: auto !important;
+  }
 }

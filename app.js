@@ -1,4 +1,3 @@
-import { initImageInteraction } from "./resize.js";
 const STORAGE_KEY = "simple-notebook-workspace-v1";
 const THEME_KEY = "simple-notebook-theme-v1";
  
@@ -93,6 +92,31 @@ const state = {
   statusTimer: null,
   renderQueued: false,
 };
+
+function getZoomFactor() {
+  return Math.min(1.5, Math.max(0.75, Number(state.zoomPercent) / 100 || 1));
+}
+
+function getUnzoomedPointer(event, element) {
+  const rect = element.getBoundingClientRect();
+  const zoom = getZoomFactor();
+  return {
+    x: (event.clientX - rect.left) / zoom,
+    y: (event.clientY - rect.top) / zoom,
+    rect,
+    zoom,
+  };
+}
+
+function getUnzoomedPageSize() {
+  const rect = DOM.board.getBoundingClientRect();
+  const zoom = getZoomFactor();
+  return {
+    width: Math.max(1, rect.width / zoom),
+    height: Math.max(1, rect.height / zoom),
+    zoom,
+  };
+}
  
 // ─── Image interaction state ──────────────────────────────────────────────────
 const HANDLE_HIT = 12; // px hit radius for corner handles
@@ -122,9 +146,9 @@ function getImageHandles(img) {
   ];
 }
 
-function getHitHandle(img, x, y) {
+function getHitHandle(img, x, y, hitRadius = HANDLE_HIT) {
   return getImageHandles(img).find(
-    (h) => Math.abs(h.x - x) <= HANDLE_HIT && Math.abs(h.y - y) <= HANDLE_HIT
+    (h) => Math.abs(h.x - x) <= hitRadius && Math.abs(h.y - y) <= hitRadius
   ) || null;
 }
 
@@ -136,7 +160,7 @@ function updateImageCursor(x, y) {
   const page = getCurrentPage();
   const img = page?.backgroundImage;
   if (!img || state.mode !== "move") { DOM.imageLayer.style.cursor = ""; return; }
-  const handle = getHitHandle(img, x, y);
+  const handle = getHitHandle(img, x, y, HANDLE_HIT / getZoomFactor());
   if (handle) {
     const cursors = { nw: "nw-resize", ne: "ne-resize", sw: "sw-resize", se: "se-resize" };
     DOM.imageLayer.style.cursor = cursors[handle.name];
@@ -148,9 +172,7 @@ function updateImageCursor(x, y) {
 }
 
 DOM.imageLayer.addEventListener("pointermove", (event) => {
-  const rect = DOM.imageLayer.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  const { x, y } = getUnzoomedPointer(event, DOM.imageLayer);
 
   if (!imageInteraction.active) {
     updateImageCursor(x, y);
@@ -207,11 +229,9 @@ DOM.imageLayer.addEventListener("pointerdown", (event) => {
   event.stopPropagation();
   DOM.imageLayer.setPointerCapture(event.pointerId);
 
-  const rect = DOM.imageLayer.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  const { x, y } = getUnzoomedPointer(event, DOM.imageLayer);
   const img = page.backgroundImage;
-  const handle = getHitHandle(img, x, y);
+  const handle = getHitHandle(img, x, y, HANDLE_HIT / getZoomFactor());
 
   imageInteraction = {
     active: true,
@@ -234,8 +254,8 @@ DOM.imageLayer.addEventListener("pointerup", (event) => {
   imageInteraction.mode = null;
   saveNow();
   renderImageLayer();
-  const rect = DOM.imageLayer.getBoundingClientRect();
-  updateImageCursor(event.clientX - rect.left, event.clientY - rect.top);
+  const { x, y } = getUnzoomedPointer(event, DOM.imageLayer);
+  updateImageCursor(x, y);
 });
 
 DOM.imageLayer.addEventListener("pointercancel", () => {
@@ -249,10 +269,10 @@ function alignImage(alignment) {
   const page = getCurrentPage();
   const img = page?.backgroundImage;
   if (!img) { setStatus("No picture on this page."); return; }
-  const rect = DOM.board.getBoundingClientRect();
+  const { width: pageWidth } = getUnzoomedPageSize();
   if (alignment === "left")   img.x = 0;
-  if (alignment === "center") img.x = (rect.width - img.width) / 2;
-  if (alignment === "right")  img.x = rect.width - img.width;
+  if (alignment === "center") img.x = (pageWidth - img.width) / 2;
+  if (alignment === "right")  img.x = pageWidth - img.width;
   saveNow();
   renderImageLayer();
   setStatus("Image aligned " + alignment + ".");
@@ -382,6 +402,13 @@ function applyZoom() {
   if (DOM.zoomSlider) DOM.zoomSlider.value = String(percent);
   if (DOM.zoomValue) DOM.zoomValue.textContent = `${percent}%`;
   resizeCanvas();
+  renderImageLayer();
+}
+
+function setZoomPercent(percent) {
+  state.zoomPercent = Math.min(150, Math.max(75, Math.round(percent / 5) * 5));
+  applyZoom();
+  scheduleSave();
 }
  
 function serializeWorkspace() {
@@ -695,7 +722,8 @@ function closeMenus() {
  
 function setCanvasTransformToCssPixels() {
   const ratio = window.devicePixelRatio || 1;
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const zoom = getZoomFactor();
+  context.setTransform(ratio * zoom, 0, 0, ratio * zoom, 0, 0);
   return ratio;
 }
  
@@ -913,25 +941,24 @@ function renderImageLayer() {
   const page = getCurrentPage();
   const image = page?.backgroundImage;
   if (!DOM.imageLayer) return;
- 
+
   if (!image?.dataUrl) {
     DOM.imageLayer.style.backgroundImage = "";
     DOM.imageLayer.hidden = true;
-    // Remove any lingering handle canvas
     const old = DOM.imageLayer.querySelector("canvas.img-handles");
     if (old) old.remove();
     return;
   }
- 
+
+  const zoom = getZoomFactor();
   DOM.imageLayer.hidden = false;
   DOM.imageLayer.style.backgroundImage = `url("${image.dataUrl}")`;
-  DOM.imageLayer.style.backgroundSize = `${image.width}px ${image.height}px`;
-  DOM.imageLayer.style.backgroundPosition = `${image.x || 0}px ${image.y || 0}px`;
+  DOM.imageLayer.style.backgroundSize = `${image.width * zoom}px ${image.height * zoom}px`;
+  DOM.imageLayer.style.backgroundPosition = `${(image.x || 0) * zoom}px ${(image.y || 0) * zoom}px`;
   DOM.imageLayer.style.backgroundRepeat = "no-repeat";
   DOM.imageLayer.style.zIndex = state.mode === "move" ? "3" : "0";
   DOM.board.style.pointerEvents = state.mode === "move" ? "none" : "auto";
- 
-  // Draw resize handles only when in move mode
+
   let handleCanvas = DOM.imageLayer.querySelector("canvas.img-handles");
   if (!handleCanvas) {
     handleCanvas = document.createElement("canvas");
@@ -941,20 +968,29 @@ function renderImageLayer() {
   }
 
   const rect = DOM.imageLayer.getBoundingClientRect();
-  handleCanvas.width = rect.width;
-  handleCanvas.height = rect.height;
+  const ratio = window.devicePixelRatio || 1;
+  handleCanvas.width = Math.max(1, Math.floor(rect.width * ratio));
+  handleCanvas.height = Math.max(1, Math.floor(rect.height * ratio));
   const hctx = handleCanvas.getContext("2d");
-  hctx.clearRect(0, 0, handleCanvas.width, handleCanvas.height);
+  hctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  hctx.clearRect(0, 0, rect.width, rect.height);
 
   if (state.mode === "move") {
+    const ix = (image.x || 0) * zoom;
+    const iy = (image.y || 0) * zoom;
+    const iw = image.width * zoom;
+    const ih = image.height * zoom;
+
     hctx.strokeStyle = "rgba(99,102,241,0.85)";
     hctx.lineWidth = 1.5;
     hctx.setLineDash([5, 4]);
-    hctx.strokeRect(image.x + 0.75, image.y + 0.75, image.width - 1.5, image.height - 1.5);
+    hctx.strokeRect(ix + 0.75, iy + 0.75, iw - 1.5, ih - 1.5);
     hctx.setLineDash([]);
 
     for (const h of getImageHandles(image)) {
       const s = HANDLE_SIZE;
+      const hx = h.x * zoom;
+      const hy = h.y * zoom;
       hctx.shadowColor = "rgba(0,0,0,0.22)";
       hctx.shadowBlur = 5;
       hctx.fillStyle = "#ffffff";
@@ -962,9 +998,9 @@ function renderImageLayer() {
       hctx.lineWidth = 1.8;
       hctx.beginPath();
       if (hctx.roundRect) {
-        hctx.roundRect(h.x - s, h.y - s, s * 2, s * 2, 3);
+        hctx.roundRect(hx - s, hy - s, s * 2, s * 2, 3);
       } else {
-        hctx.rect(h.x - s, h.y - s, s * 2, s * 2);
+        hctx.rect(hx - s, hy - s, s * 2, s * 2);
       }
       hctx.fill();
       hctx.stroke();
@@ -972,6 +1008,7 @@ function renderImageLayer() {
     }
   }
 }
+
  
 function loadImage(dataUrl) {
   return new Promise((resolve, reject) => {
@@ -1034,9 +1071,9 @@ async function drawPageImage(targetContext, page, width, height) {
  
 function renderCanvas() {
   const page = getCurrentPage();
-  const ratio = setCanvasTransformToCssPixels();
-  const rect = DOM.board.getBoundingClientRect();
-  context.clearRect(0, 0, rect.width, rect.height);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, DOM.board.width, DOM.board.height);
+  setCanvasTransformToCssPixels();
   if (!page) return;
   for (const stroke of page.strokes) {
     renderStroke(stroke, context);
@@ -1163,16 +1200,16 @@ async function redrawWithPaper(targetContext, width, height, page) {
  
 async function createPageExportCanvas(scale = Math.max(2, window.devicePixelRatio || 1), page = getCurrentPage()) {
   if (!page) return null;
-  const rect = DOM.board.getBoundingClientRect();
+  const { width: pageWidth, height: pageHeight } = getUnzoomedPageSize();
   const exportWidth = Math.floor(2100 * scale / 2);
   const exportHeight = Math.round(exportWidth * 297 / 210);
   const exportCanvas = document.createElement("canvas");
   exportCanvas.width = Math.max(1, exportWidth);
   exportCanvas.height = Math.max(1, exportHeight);
   const exportContext = exportCanvas.getContext("2d");
-  const targetScale = exportCanvas.width / rect.width;
+  const targetScale = exportCanvas.width / pageWidth;
   exportContext.setTransform(targetScale, 0, 0, targetScale, 0, 0);
-  await redrawWithPaper(exportContext, rect.width, rect.height, page);
+  await redrawWithPaper(exportContext, pageWidth, pageHeight, page);
   return exportCanvas;
 }
  
@@ -1368,9 +1405,9 @@ function uploadPictureToPage(file) {
   reader.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const rect = DOM.board.getBoundingClientRect();
-      const maxWidth = rect.width * 0.6;
-      const maxHeight = rect.height * 0.6;
+      const { width: pageWidth, height: pageHeight } = getUnzoomedPageSize();
+      const maxWidth = pageWidth * 0.6;
+      const maxHeight = pageHeight * 0.6;
       let width = img.width;
       let height = img.height;
       const ratio = width / height;
@@ -1386,8 +1423,8 @@ function uploadPictureToPage(file) {
       page.backgroundImage = {
         dataUrl: reader.result,
         name: file.name,
-        x: (rect.width - width) / 2,
-        y: (rect.height - height) / 2,
+        x: (pageWidth - width) / 2,
+        y: (pageHeight - height) / 2,
         width,
         height,
         fit: "manual",
@@ -1445,11 +1482,11 @@ function startStroke(event) {
 }
  
 function getPoint(event) {
-  const rect = DOM.board.getBoundingClientRect();
+  const { x, y } = getUnzoomedPointer(event, DOM.board);
   const pressure = event.pressure && event.pressure > 0 ? event.pressure : event.pointerType === "pen" ? 0.65 : 0.5;
   return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
+    x,
+    y,
     pressure,
     time: performance.now(),
   };
@@ -1767,9 +1804,7 @@ function initEvents() {
   });
 
   DOM.zoomSlider?.addEventListener("input", (event) => {
-    state.zoomPercent = Number(event.target.value);
-    applyZoom();
-    scheduleSave();
+    setZoomPercent(Number(event.target.value));
   });
  
   DOM.pictureInput?.addEventListener("change", (event) => {
@@ -1869,4 +1904,3 @@ function boot() {
 // - Transform rough stroke input into personalized clean handwriting.
  
 boot();
-initImageInteraction(DOM, getCurrentPage, renderImageLayer, saveNow);
