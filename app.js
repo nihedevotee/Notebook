@@ -1,9 +1,10 @@
+import { initImageInteraction } from "./resize.js";
 const STORAGE_KEY = "simple-notebook-workspace-v1";
 const THEME_KEY = "simple-notebook-theme-v1";
-
-
+ 
+ 
 const INK_COLORS = ["#1d4ed8", "#ec4899", "#38bdf8", "#f97316", "#111827"];
-
+ 
 const TOOL_PRESETS = {
   pen: { label: "Pen", widthMultiplier: 1, opacity: 1, composite: "source-over", smoothingPasses: 1 },
   brush: { label: "Brush", widthMultiplier: 1.55, opacity: 0.9, composite: "source-over", smoothingPasses: 2 },
@@ -12,7 +13,7 @@ const TOOL_PRESETS = {
   pencil: { label: "Pencil", widthMultiplier: 0.78, opacity: 0.82, composite: "source-over", smoothingPasses: 1, textured: true },
   highlighter: { label: "Highlighter", widthMultiplier: 3.2, opacity: 0.28, composite: "multiply", smoothingPasses: 1 },
 };
-
+ 
 const INK_ENGINE = {
   liveDelayMs: 18,
   liveSmoothingPasses: 1,
@@ -22,7 +23,7 @@ const INK_ENGINE = {
   curveSmoothStrength: 0.18,
   maxRowShift: 8,
 };
-
+ 
 const PALETTES = [
   { id: "soft-pastel", name: "Soft Pastel", bg: "#fffaf0", line: "rgba(103, 139, 196, 0.14)", margin: "rgba(240, 174, 196, 0.16)", border: "rgba(141, 153, 182, 0.18)", shadow: "0 16px 40px rgba(31, 41, 55, 0.08)", texture: "rgba(255,255,255,0.34)" },
   { id: "warm-coffee", name: "Warm Coffee", bg: "#f8efe1", line: "rgba(114, 85, 55, 0.16)", margin: "rgba(146, 98, 55, 0.18)", border: "rgba(125, 93, 63, 0.2)", shadow: "0 16px 40px rgba(74, 54, 38, 0.12)", texture: "rgba(255,255,255,0.24)" },
@@ -31,7 +32,7 @@ const PALETTES = [
   { id: "ocean-study", name: "Ocean Study", bg: "#eef7ff", line: "rgba(94, 126, 166, 0.16)", margin: "rgba(121, 170, 214, 0.18)", border: "rgba(118, 149, 183, 0.2)", shadow: "0 16px 40px rgba(30, 58, 90, 0.1)", texture: "rgba(255,255,255,0.32)" },
   { id: "minimal-black", name: "Minimal Black", bg: "#0d1117", line: "rgba(210, 215, 224, 0.16)", margin: "rgba(120, 128, 138, 0.22)", border: "rgba(137, 146, 158, 0.22)", shadow: "0 16px 42px rgba(0, 0, 0, 0.46)", texture: "rgba(255,255,255,0.04)" },
 ];
-
+ 
 const DOM = {
   appShell: document.getElementById("appShell"),
   sidebar: document.getElementById("sidebar"),
@@ -63,14 +64,14 @@ const DOM = {
   clearBtn: document.getElementById("clearBtn"),
   board: document.getElementById("board"),
   status: document.getElementById("status"),
-pdfChoiceModal: document.getElementById("pdfChoiceModal"),
-pdfThisPageBtn: document.getElementById("pdfThisPageBtn"),
-pdfWholeProjectBtn: document.getElementById("pdfWholeProjectBtn"),
-pdfCancelBtn: document.getElementById("pdfCancelBtn"),
+  pdfChoiceModal: document.getElementById("pdfChoiceModal"),
+  pdfThisPageBtn: document.getElementById("pdfThisPageBtn"),
+  pdfWholeProjectBtn: document.getElementById("pdfWholeProjectBtn"),
+  pdfCancelBtn: document.getElementById("pdfCancelBtn"),
 };
-
+ 
 const context = DOM.board.getContext("2d");
-
+ 
 const state = {
   projects: [],
   selectedProjectId: null,
@@ -90,11 +91,176 @@ const state = {
   statusTimer: null,
   renderQueued: false,
 };
+ 
+// ─── Image interaction state ──────────────────────────────────────────────────
+const HANDLE_HIT = 12; // px hit radius for corner handles
+const HANDLE_SIZE = 8; // visual half-size
 
+let imageInteraction = {
+  active: false,
+  mode: null,   // "drag" | "resize"
+  handle: null, // "nw" | "ne" | "sw" | "se"
+  startX: 0,
+  startY: 0,
+  origX: 0,
+  origY: 0,
+  origWidth: 0,
+  origHeight: 0,
+  origAspect: 1,
+};
+
+// state.mode === "move" → interact with image; any other mode → draw.
+
+function getImageHandles(img) {
+  return [
+    { name: "nw", x: img.x,             y: img.y },
+    { name: "ne", x: img.x + img.width, y: img.y },
+    { name: "sw", x: img.x,             y: img.y + img.height },
+    { name: "se", x: img.x + img.width, y: img.y + img.height },
+  ];
+}
+
+function getHitHandle(img, x, y) {
+  return getImageHandles(img).find(
+    (h) => Math.abs(h.x - x) <= HANDLE_HIT && Math.abs(h.y - y) <= HANDLE_HIT
+  ) || null;
+}
+
+function isInsideImage(img, x, y) {
+  return x >= img.x && x <= img.x + img.width && y >= img.y && y <= img.y + img.height;
+}
+
+function updateImageCursor(x, y) {
+  const page = getCurrentPage();
+  const img = page?.backgroundImage;
+  if (!img || state.mode !== "move") { DOM.imageLayer.style.cursor = ""; return; }
+  const handle = getHitHandle(img, x, y);
+  if (handle) {
+    const cursors = { nw: "nw-resize", ne: "ne-resize", sw: "sw-resize", se: "se-resize" };
+    DOM.imageLayer.style.cursor = cursors[handle.name];
+  } else if (isInsideImage(img, x, y)) {
+    DOM.imageLayer.style.cursor = "grab";
+  } else {
+    DOM.imageLayer.style.cursor = "default";
+  }
+}
+
+DOM.imageLayer.addEventListener("pointermove", (event) => {
+  const rect = DOM.imageLayer.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  if (!imageInteraction.active) {
+    updateImageCursor(x, y);
+    return;
+  }
+
+  const page = getCurrentPage();
+  if (!page?.backgroundImage) return;
+  const img = page.backgroundImage;
+  const { origX, origY, origWidth, origHeight, origAspect } = imageInteraction;
+
+  if (imageInteraction.mode === "drag") {
+    img.x = origX + (x - imageInteraction.startX);
+    img.y = origY + (y - imageInteraction.startY);
+  } else if (imageInteraction.mode === "resize") {
+    const dx = x - imageInteraction.startX;
+    switch (imageInteraction.handle) {
+      case "se": {
+        const w = Math.max(40, origWidth + dx);
+        img.width = w; img.height = w / origAspect;
+        break;
+      }
+      case "sw": {
+        const w = Math.max(40, origWidth - dx);
+        img.x = origX + (origWidth - w);
+        img.width = w; img.height = w / origAspect;
+        break;
+      }
+      case "ne": {
+        const w = Math.max(40, origWidth + dx);
+        const h = w / origAspect;
+        img.y = origY + (origHeight - h);
+        img.width = w; img.height = h;
+        break;
+      }
+      case "nw": {
+        const w = Math.max(40, origWidth - dx);
+        const h = w / origAspect;
+        img.x = origX + (origWidth - w);
+        img.y = origY + (origHeight - h);
+        img.width = w; img.height = h;
+        break;
+      }
+    }
+  }
+  renderImageLayer();
+});
+
+DOM.imageLayer.addEventListener("pointerdown", (event) => {
+  const page = getCurrentPage();
+  if (!page?.backgroundImage) return;
+  if (state.mode !== "move") return;
+  event.preventDefault();
+  event.stopPropagation();
+  DOM.imageLayer.setPointerCapture(event.pointerId);
+
+  const rect = DOM.imageLayer.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const img = page.backgroundImage;
+  const handle = getHitHandle(img, x, y);
+
+  imageInteraction = {
+    active: true,
+    mode: handle ? "resize" : "drag",
+    handle: handle?.name || null,
+    startX: x,
+    startY: y,
+    origX: img.x,
+    origY: img.y,
+    origWidth: img.width,
+    origHeight: img.height,
+    origAspect: img.width / img.height,
+  };
+  if (!handle) DOM.imageLayer.style.cursor = "grabbing";
+});
+
+DOM.imageLayer.addEventListener("pointerup", (event) => {
+  if (!imageInteraction.active) return;
+  imageInteraction.active = false;
+  imageInteraction.mode = null;
+  saveNow();
+  renderImageLayer();
+  const rect = DOM.imageLayer.getBoundingClientRect();
+  updateImageCursor(event.clientX - rect.left, event.clientY - rect.top);
+});
+
+DOM.imageLayer.addEventListener("pointercancel", () => {
+  imageInteraction.active = false;
+  imageInteraction.mode = null;
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Image alignment helpers ──────────────────────────────────────────────────
+function alignImage(alignment) {
+  const page = getCurrentPage();
+  const img = page?.backgroundImage;
+  if (!img) { setStatus("No picture on this page."); return; }
+  const rect = DOM.board.getBoundingClientRect();
+  if (alignment === "left")   img.x = 0;
+  if (alignment === "center") img.x = (rect.width - img.width) / 2;
+  if (alignment === "right")  img.x = rect.width - img.width;
+  saveNow();
+  renderImageLayer();
+  setStatus("Image aligned " + alignment + ".");
+}
+// ─────────────────────────────────────────────────────────────────────────────
+ 
 function uid(prefix = "id") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
-
+ 
 function escapeHtml(text) {
   return String(text)
     .replaceAll("&", "&amp;")
@@ -103,7 +269,7 @@ function escapeHtml(text) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
-
+ 
 function clonePoint(point) {
   return {
     x: point.x,
@@ -112,14 +278,14 @@ function clonePoint(point) {
     time: point.time ?? 0,
   };
 }
-
+ 
 function cloneStroke(stroke) {
   const rawPoints = Array.isArray(stroke.rawPoints)
     ? stroke.rawPoints.map(clonePoint)
     : Array.isArray(stroke.points)
       ? stroke.points.map(clonePoint)
       : [];
-
+ 
   return {
     mode: stroke.mode === "eraser" ? "eraser" : (TOOL_PRESETS[stroke.mode] ? stroke.mode : "pen"),
     color: stroke.color,
@@ -129,7 +295,7 @@ function cloneStroke(stroke) {
     points: Array.isArray(stroke.points) ? stroke.points.map(clonePoint) : rawPoints.map(clonePoint),
   };
 }
-
+ 
 function createDefaultPage(name = "Page 1") {
   return {
     id: uid("page"),
@@ -140,7 +306,7 @@ function createDefaultPage(name = "Page 1") {
     backgroundImage: null,
   };
 }
-
+ 
 function createDefaultProject(name = "Notebook 1") {
   const page = createDefaultPage();
   return {
@@ -150,26 +316,26 @@ function createDefaultProject(name = "Notebook 1") {
     pages: [page],
   };
 }
-
+ 
 function getPalette(id) {
   return PALETTES.find((palette) => palette.id === id) || PALETTES[0];
 }
-
+ 
 function getSelectedProject() {
   return state.projects.find((project) => project.id === state.selectedProjectId) || state.projects[0] || null;
 }
-
+ 
 function getSelectedPage() {
   const project = getSelectedProject();
   if (!project) return null;
   return project.pages.find((page) => page.id === state.selectedPageId) || project.pages[0] || null;
 }
-
+ 
 function ensureWorkspace() {
   if (!state.projects.length) {
     state.projects = [createDefaultProject()];
   }
-
+ 
   for (const project of state.projects) {
     if (!Array.isArray(project.pages) || !project.pages.length) {
       project.pages = [createDefaultPage()];
@@ -182,28 +348,28 @@ function ensureWorkspace() {
       page.backgroundImage = page.backgroundImage && page.backgroundImage.dataUrl ? page.backgroundImage : null;
     }
   }
-
+ 
   if (!state.projects.some((project) => project.id === state.selectedProjectId)) {
     state.selectedProjectId = state.projects[0].id;
   }
-
+ 
   const project = getSelectedProject();
   if (!project.pages.some((page) => page.id === state.selectedPageId)) {
     state.selectedPageId = project.pages[0].id;
   }
-
+ 
   if (!PALETTES.some((palette) => palette.id === state.selectedPaletteId)) {
     state.selectedPaletteId = getSelectedPage()?.themeId || PALETTES[0].id;
   }
-
+ 
   if (!INK_COLORS.includes(state.selectedColor)) {
     state.selectedColor = INK_COLORS[0];
   }
-
+ 
   state.brushSize = Number(state.brushSize) || 4;
-  state.mode = state.mode === "eraser" ? "eraser" : (TOOL_PRESETS[state.mode] ? state.mode : "pen");
+  state.mode = (state.mode === "eraser" || state.mode === "move") ? state.mode : (TOOL_PRESETS[state.mode] ? state.mode : "pen");
 }
-
+ 
 function serializeWorkspace() {
   return {
     projects: state.projects,
@@ -217,18 +383,18 @@ function serializeWorkspace() {
     theme: state.theme,
   };
 }
-
+ 
 function saveNow() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeWorkspace()));
 }
-
+ 
 function scheduleSave() {
   clearTimeout(state.saveTimer);
   state.saveTimer = setTimeout(() => {
     saveNow();
   }, 120);
 }
-
+ 
 function setStatus(message) {
   DOM.status.textContent = message;
   clearTimeout(state.statusTimer);
@@ -236,7 +402,7 @@ function setStatus(message) {
     DOM.status.textContent = "Autosaves locally in this browser.";
   }, 1800);
 }
-
+ 
 function applyTheme() {
   document.documentElement.dataset.theme = state.theme;
   localStorage.setItem(THEME_KEY, state.theme);
@@ -245,21 +411,21 @@ function applyTheme() {
     DOM.themeToggle.setAttribute("aria-label", `Switch to ${state.theme === "dark" ? "light" : "dark"} mode`);
   }
 }
-
+ 
 function toggleTheme() {
   state.theme = state.theme === "dark" ? "light" : "dark";
   applyTheme();
   scheduleSave();
   setStatus(`${state.theme === "dark" ? "Dark" : "Light"} mode enabled.`);
 }
-
+ 
 function getEmojiForId(id, fallback = "✨") {
   const emojis = ["😊", "🎨", "📚", "🚀", "💡", "✨", "🌙", "📝", "🧠", "🌿"];
   let sum = 0;
   for (const char of String(id || fallback)) sum += char.charCodeAt(0);
   return emojis[sum % emojis.length];
 }
-
+ 
 function loadWorkspace() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -270,7 +436,7 @@ function loadWorkspace() {
       state.theme = localStorage.getItem(THEME_KEY) || "light";
       return;
     }
-
+ 
     const parsed = JSON.parse(raw);
     state.projects = Array.isArray(parsed.projects) ? parsed.projects : [];
     state.selectedProjectId = parsed.selectedProjectId || null;
@@ -278,7 +444,7 @@ function loadWorkspace() {
     state.selectedPaletteId = parsed.selectedPaletteId || state.selectedPaletteId;
     state.selectedColor = parsed.selectedColor || state.selectedColor;
     state.brushSize = Number(parsed.brushSize) || state.brushSize;
-    state.mode = parsed.mode === "eraser" ? "eraser" : (TOOL_PRESETS[parsed.mode] ? parsed.mode : "pen");
+    state.mode = (parsed.mode === "eraser" || parsed.mode === "move") ? parsed.mode : (TOOL_PRESETS[parsed.mode] ? parsed.mode : "pen");
     state.sidebarOpen = typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : window.innerWidth > 980;
     state.theme = parsed.theme || localStorage.getItem(THEME_KEY) || "light";
   } catch {
@@ -288,18 +454,18 @@ function loadWorkspace() {
     state.sidebarOpen = window.innerWidth > 980;
     state.theme = localStorage.getItem(THEME_KEY) || "light";
   }
-
+ 
   state.theme = state.theme === "dark" ? "dark" : "light";
   ensureWorkspace();
 }
-
+ 
 function getCurrentPalette() {
   return getPalette(state.selectedPaletteId);
 }
-
+ 
 function applyPaperTheme(themeId) {
   const palette = getPalette(themeId || state.selectedPaletteId);
-
+ 
   DOM.paperFrame.style.setProperty("--paper-bg", palette.bg);
   DOM.paperFrame.style.setProperty("--paper-line", palette.line);
   DOM.paperFrame.style.setProperty("--paper-margin", palette.margin);
@@ -307,33 +473,52 @@ function applyPaperTheme(themeId) {
   DOM.paperFrame.style.setProperty("--paper-shadow", palette.shadow);
   DOM.paperFrame.style.setProperty("--paper-texture", palette.texture);
 }
-
+ 
 function setActivePalette(id) {
   const page = getSelectedPage();
   if (!page) return;
-
+ 
   state.selectedPaletteId = id;
   page.themeId = id;
-
+ 
   applyPaperTheme(id);
   scheduleSave();
   renderPalettePicker();
   setStatus("Notebook theme changed.");
 }
-
+ 
 function setSelectedColor(color) {
   state.selectedColor = color;
   scheduleSave();
   renderAll();
 }
-
+ 
 function setMode(mode) {
-  state.mode = mode === "eraser" ? "eraser" : (TOOL_PRESETS[mode] ? mode : "pen");
+  if (mode === "move") {
+    state.mode = "move";
+  } else if (mode === "eraser") {
+    state.mode = "eraser";
+  } else {
+    state.mode = TOOL_PRESETS[mode] ? mode : "pen";
+  }
+  if (DOM.imageLayer) {
+    DOM.imageLayer.style.pointerEvents = state.mode === "move" ? "auto" : "none";
+    DOM.imageLayer.style.zIndex = state.mode === "move" ? "3" : "0";
+  }
+  if (DOM.board) {
+    DOM.board.style.pointerEvents = state.mode === "move" ? "none" : "auto";
+  }
   scheduleSave();
   renderAll();
-  setStatus(state.mode === "eraser" ? "Eraser selected." : `${TOOL_PRESETS[state.mode].label} selected.`);
+  if (state.mode === "move") {
+    setStatus("Move mode — drag image, drag corners to resize.");
+  } else if (state.mode === "eraser") {
+    setStatus("Eraser selected.");
+  } else {
+    setStatus(`${TOOL_PRESETS[state.mode].label} selected.`);
+  }
 }
-
+ 
 function selectProject(projectId) {
   const project = state.projects.find((item) => item.id === projectId);
   if (!project) return;
@@ -344,21 +529,21 @@ function selectProject(projectId) {
   scheduleSave();
   renderAll();
 }
-
+ 
 function selectPage(projectId, pageId) {
   const project = state.projects.find((item) => item.id === projectId);
   if (!project) return;
   const page = project.pages.find((item) => item.id === pageId);
   if (!page) return;
- state.selectedProjectId = projectId;
-state.selectedPageId = pageId;
-state.selectedPaletteId = page.themeId || state.selectedPaletteId;
-project.expanded = true;
-state.menu = null;
-scheduleSave();
-renderAll();
+  state.selectedProjectId = projectId;
+  state.selectedPageId = pageId;
+  state.selectedPaletteId = page.themeId || state.selectedPaletteId;
+  project.expanded = true;
+  state.menu = null;
+  scheduleSave();
+  renderAll();
 }
-
+ 
 function createProject() {
   const existingNames = new Set(state.projects.map((project) => project.name));
   let index = 1;
@@ -379,7 +564,7 @@ function createProject() {
   renderAll();
   setStatus("New project created.");
 }
-
+ 
 function createPage(projectId = state.selectedProjectId) {
   const project = state.projects.find((item) => item.id === projectId);
   if (!project) return;
@@ -400,7 +585,7 @@ function createPage(projectId = state.selectedProjectId) {
   renderAll();
   setStatus("New page added.");
 }
-
+ 
 function renameProject(projectId) {
   const project = state.projects.find((item) => item.id === projectId);
   if (!project) return;
@@ -412,7 +597,7 @@ function renameProject(projectId) {
   scheduleSave();
   renderAll();
 }
-
+ 
 function renamePage(projectId, pageId) {
   const project = state.projects.find((item) => item.id === projectId);
   const page = project?.pages.find((item) => item.id === pageId);
@@ -425,7 +610,7 @@ function renamePage(projectId, pageId) {
   scheduleSave();
   renderAll();
 }
-
+ 
 function deleteProject(projectId) {
   if (state.projects.length === 1) {
     const shouldReplace = window.confirm("This is the last project. Delete it and create a fresh one?");
@@ -450,7 +635,7 @@ function deleteProject(projectId) {
   renderAll();
   setStatus("Project deleted.");
 }
-
+ 
 function deletePage(projectId, pageId) {
   const project = state.projects.find((item) => item.id === projectId);
   if (!project) return;
@@ -471,7 +656,7 @@ function deletePage(projectId, pageId) {
   renderAll();
   setStatus("Page deleted.");
 }
-
+ 
 function toggleProjectOpen(projectId) {
   const project = state.projects.find((item) => item.id === projectId);
   if (!project) return;
@@ -480,24 +665,24 @@ function toggleProjectOpen(projectId) {
   scheduleSave();
   renderAll();
 }
-
+ 
 function toggleSidebar(force) {
   state.sidebarOpen = typeof force === "boolean" ? force : !state.sidebarOpen;
   scheduleSave();
   renderAll();
 }
-
+ 
 function closeMenus() {
   state.menu = null;
   renderAllSidebar();
 }
-
+ 
 function setCanvasTransformToCssPixels() {
   const ratio = window.devicePixelRatio || 1;
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   return ratio;
 }
-
+ 
 function getCanvasSize() {
   const rect = DOM.board.getBoundingClientRect();
   const ratio = window.devicePixelRatio || 1;
@@ -507,7 +692,7 @@ function getCanvasSize() {
     ratio,
   };
 }
-
+ 
 function resizeCanvas() {
   const { width, height, ratio } = getCanvasSize();
   const targetWidth = Math.floor(width * ratio);
@@ -518,22 +703,22 @@ function resizeCanvas() {
   }
   renderCanvas();
 }
-
+ 
 function getCurrentPage() {
   return getSelectedPage();
 }
-
+ 
 function shouldStorePoint(previous, nextPoint, minimumDistance = INK_ENGINE.minPointDistance) {
   if (!previous) return true;
   return Math.hypot(nextPoint.x - previous.x, nextPoint.y - previous.y) >= Math.max(minimumDistance, state.brushSize * 0.06);
 }
-
+ 
 function getStrokePoints(stroke) {
   if (Array.isArray(stroke.points) && stroke.points.length) return stroke.points;
   if (Array.isArray(stroke.rawPoints) && stroke.rawPoints.length) return stroke.rawPoints;
   return [];
 }
-
+ 
 function smoothPoints(points, passes = 1) {
   if (points.length <= 2) return points.map(clonePoint);
   let current = points.map(clonePoint);
@@ -555,7 +740,7 @@ function smoothPoints(points, passes = 1) {
   }
   return current;
 }
-
+ 
 function simplifyClosePoints(points, minimumDistance = 0.8) {
   if (points.length <= 2) return points.map(clonePoint);
   const simplified = [clonePoint(points[0])];
@@ -569,18 +754,18 @@ function simplifyClosePoints(points, minimumDistance = 0.8) {
   simplified.push(clonePoint(points[points.length - 1]));
   return simplified;
 }
-
+ 
 function midpoint(a, b) {
   return {
     x: (a.x + b.x) / 2,
     y: (a.y + b.y) / 2,
   };
 }
-
+ 
 function lerp(a, b, amount) {
   return a + (b - a) * amount;
 }
-
+ 
 function distancePointToLine(point, start, end) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -590,25 +775,25 @@ function distancePointToLine(point, start, end) {
   const projection = { x: start.x + t * dx, y: start.y + t * dy };
   return Math.hypot(point.x - projection.x, point.y - projection.y);
 }
-
+ 
 function straightenIfAlmostLine(points, strength = INK_ENGINE.lineStraightenStrength) {
   if (points.length < 4) return points.map(clonePoint);
   const start = points[0];
   const end = points[points.length - 1];
   const length = Math.hypot(end.x - start.x, end.y - start.y);
   if (length < 18) return points.map(clonePoint);
-
+ 
   const totalTravel = points.slice(1).reduce((sum, point, index) => {
     const previous = points[index];
     return sum + Math.hypot(point.x - previous.x, point.y - previous.y);
   }, 0);
   const directness = length / Math.max(totalTravel, 1);
   const averageWobble = points.reduce((sum, point) => sum + distancePointToLine(point, start, end), 0) / points.length;
-
+ 
   if (directness < 0.72 || averageWobble > Math.max(7, length * 0.055)) {
     return points.map(clonePoint);
   }
-
+ 
   return points.map((point, index) => {
     const t = index / Math.max(points.length - 1, 1);
     const lineX = lerp(start.x, end.x, t);
@@ -620,7 +805,7 @@ function straightenIfAlmostLine(points, strength = INK_ENGINE.lineStraightenStre
     };
   });
 }
-
+ 
 function getPointWidth(point, previous, baseWidth, mode) {
   const pressure = point.pressure ?? 0.5;
   const dt = Math.max(8, (point.time ?? 0) - (previous?.time ?? point.time ?? 0));
@@ -630,7 +815,7 @@ function getPointWidth(point, previous, baseWidth, mode) {
   const pressureFactor = mode === "eraser" ? 1 : 0.74 + pressure * 0.58;
   return Math.max(0.85, baseWidth * speedFactor * pressureFactor);
 }
-
+ 
 function drawCurvePass(points, stroke, targetContext, baseWidth, jitter = 0) {
   for (let index = 1; index < points.length; index += 1) {
     const previous = points[index - 1];
@@ -642,7 +827,7 @@ function drawCurvePass(points, stroke, targetContext, baseWidth, jitter = 0) {
     const offsetX = jitter ? Math.sin(index * 12.9898 + stroke.size) * jitter : 0;
     const offsetY = jitter ? Math.cos(index * 78.233 + stroke.size) * jitter : 0;
     const width = getPointWidth(current, previous, baseWidth, stroke.mode);
-
+ 
     targetContext.lineWidth = width;
     targetContext.beginPath();
     targetContext.moveTo(start.x + offsetX, start.y + offsetY);
@@ -650,14 +835,14 @@ function drawCurvePass(points, stroke, targetContext, baseWidth, jitter = 0) {
     targetContext.stroke();
   }
 }
-
+ 
 function renderStroke(stroke, targetContext = context) {
   const sourcePoints = getStrokePoints(stroke);
   const preset = TOOL_PRESETS[stroke.mode] || TOOL_PRESETS.pen;
   const passes = stroke.beautified ? 2 : (preset.smoothingPasses || INK_ENGINE.liveSmoothingPasses);
   const points = simplifyClosePoints(smoothPoints(sourcePoints, passes), 0.55);
   if (!points.length) return;
-
+ 
   targetContext.save();
   targetContext.globalCompositeOperation = stroke.mode === "eraser" ? "destination-out" : (preset.composite || "source-over");
   targetContext.globalAlpha = stroke.mode === "eraser" ? 1 : (preset.opacity ?? 1);
@@ -665,9 +850,9 @@ function renderStroke(stroke, targetContext = context) {
   targetContext.lineJoin = "round";
   targetContext.strokeStyle = stroke.color;
   targetContext.fillStyle = stroke.color;
-
+ 
   const baseWidth = stroke.mode === "eraser" ? stroke.size * 2.4 : stroke.size * (preset.widthMultiplier || 1);
-
+ 
   if (points.length === 1) {
     const point = points[0];
     const width = getPointWidth(point, null, baseWidth, stroke.mode);
@@ -677,19 +862,19 @@ function renderStroke(stroke, targetContext = context) {
     targetContext.restore();
     return;
   }
-
+ 
   drawCurvePass(points, stroke, targetContext, baseWidth, 0);
-
+ 
   if (preset.textured) {
     targetContext.globalAlpha = Math.max(0.16, (preset.opacity ?? 1) * 0.42);
     targetContext.lineWidth = Math.max(0.7, baseWidth * 0.36);
     drawCurvePass(points, stroke, targetContext, Math.max(0.7, baseWidth * 0.42), 0.9);
     drawCurvePass(points, stroke, targetContext, Math.max(0.7, baseWidth * 0.28), -0.7);
   }
-
+ 
   targetContext.restore();
 }
-
+ 
 function renderPaperBackground(targetContext, width, height, themeId) {
   const palette = getPalette(themeId || state.selectedPaletteId);
   targetContext.save();
@@ -707,23 +892,71 @@ function renderPaperBackground(targetContext, width, height, themeId) {
   }
   targetContext.restore();
 }
-
+ 
 function renderImageLayer() {
   const page = getCurrentPage();
   const image = page?.backgroundImage;
   if (!DOM.imageLayer) return;
+ 
   if (!image?.dataUrl) {
     DOM.imageLayer.style.backgroundImage = "";
     DOM.imageLayer.hidden = true;
+    // Remove any lingering handle canvas
+    const old = DOM.imageLayer.querySelector("canvas.img-handles");
+    if (old) old.remove();
     return;
   }
+ 
   DOM.imageLayer.hidden = false;
   DOM.imageLayer.style.backgroundImage = `url("${image.dataUrl}")`;
-  DOM.imageLayer.style.backgroundSize = image.fit || "contain";
-  DOM.imageLayer.style.backgroundPosition = "center";
+  DOM.imageLayer.style.backgroundSize = `${image.width}px ${image.height}px`;
+  DOM.imageLayer.style.backgroundPosition = `${image.x || 0}px ${image.y || 0}px`;
   DOM.imageLayer.style.backgroundRepeat = "no-repeat";
-}
+  DOM.imageLayer.style.zIndex = state.mode === "move" ? "3" : "0";
+  DOM.board.style.pointerEvents = state.mode === "move" ? "none" : "auto";
+ 
+  // Draw resize handles only when in move mode
+  let handleCanvas = DOM.imageLayer.querySelector("canvas.img-handles");
+  if (!handleCanvas) {
+    handleCanvas = document.createElement("canvas");
+    handleCanvas.className = "img-handles";
+    handleCanvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;";
+    DOM.imageLayer.appendChild(handleCanvas);
+  }
 
+  const rect = DOM.imageLayer.getBoundingClientRect();
+  handleCanvas.width = rect.width;
+  handleCanvas.height = rect.height;
+  const hctx = handleCanvas.getContext("2d");
+  hctx.clearRect(0, 0, handleCanvas.width, handleCanvas.height);
+
+  if (state.mode === "move") {
+    hctx.strokeStyle = "rgba(99,102,241,0.85)";
+    hctx.lineWidth = 1.5;
+    hctx.setLineDash([5, 4]);
+    hctx.strokeRect(image.x + 0.75, image.y + 0.75, image.width - 1.5, image.height - 1.5);
+    hctx.setLineDash([]);
+
+    for (const h of getImageHandles(image)) {
+      const s = HANDLE_SIZE;
+      hctx.shadowColor = "rgba(0,0,0,0.22)";
+      hctx.shadowBlur = 5;
+      hctx.fillStyle = "#ffffff";
+      hctx.strokeStyle = "rgba(99,102,241,0.95)";
+      hctx.lineWidth = 1.8;
+      hctx.beginPath();
+      if (hctx.roundRect) {
+        hctx.roundRect(h.x - s, h.y - s, s * 2, s * 2, 3);
+      } else {
+        hctx.rect(h.x - s, h.y - s, s * 2, s * 2);
+      }
+      hctx.fill();
+      hctx.stroke();
+      hctx.shadowBlur = 0;
+    }
+  }
+}
+ 
 function loadImage(dataUrl) {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -732,12 +965,29 @@ function loadImage(dataUrl) {
     image.src = dataUrl;
   });
 }
-
+ 
+// ─── FIX: drawPageImage now honours the manual x/y/width/height ──────────────
 async function drawPageImage(targetContext, page, width, height) {
   const imageData = page?.backgroundImage;
   if (!imageData?.dataUrl) return;
   try {
     const image = await loadImage(imageData.dataUrl);
+ 
+    // Honour the manual position & size set by the user (drag / corner resize)
+    if (imageData.fit === "manual" && imageData.width && imageData.height) {
+      targetContext.save();
+      targetContext.drawImage(
+        image,
+        imageData.x ?? 0,
+        imageData.y ?? 0,
+        imageData.width,
+        imageData.height
+      );
+      targetContext.restore();
+      return;
+    }
+ 
+    // Legacy fallback: centre-fit contain / cover
     const imageRatio = image.naturalWidth / image.naturalHeight;
     const frameRatio = width / height;
     let drawWidth = width;
@@ -748,7 +998,7 @@ async function drawPageImage(targetContext, page, width, height) {
       } else {
         drawWidth = height * imageRatio;
       }
-    } else if ((imageData.fit || "contain") === "cover") {
+    } else if (imageData.fit === "cover") {
       if (imageRatio > frameRatio) {
         drawWidth = height * imageRatio;
       } else {
@@ -764,7 +1014,8 @@ async function drawPageImage(targetContext, page, width, height) {
     setStatus("Could not include the uploaded picture in export.");
   }
 }
-
+// ─────────────────────────────────────────────────────────────────────────────
+ 
 function renderCanvas() {
   const page = getCurrentPage();
   const ratio = setCanvasTransformToCssPixels();
@@ -778,7 +1029,7 @@ function renderCanvas() {
     renderStroke(state.activeStroke, context);
   }
 }
-
+ 
 function queueRender() {
   if (state.renderQueued) return;
   state.renderQueued = true;
@@ -787,19 +1038,19 @@ function queueRender() {
     renderCanvas();
   });
 }
-
+ 
 function applyBeautifyToStroke(stroke) {
   const cloned = cloneStroke(stroke);
   if (cloned.mode === "eraser" || cloned.rawPoints.length < 2) {
     return cloned;
   }
-
+ 
   const rawPoints = cloned.rawPoints.map(clonePoint);
   let refinedPoints = simplifyClosePoints(rawPoints, 0.75);
   refinedPoints = smoothPoints(refinedPoints, INK_ENGINE.refineSmoothingPasses);
   refinedPoints = straightenIfAlmostLine(refinedPoints);
   refinedPoints = smoothPoints(refinedPoints, 1);
-
+ 
   return {
     ...cloned,
     beautified: true,
@@ -807,7 +1058,7 @@ function applyBeautifyToStroke(stroke) {
     points: refinedPoints,
   };
 }
-
+ 
 function getStrokeBounds(stroke) {
   const points = getStrokePoints(stroke);
   if (!points.length) return null;
@@ -823,14 +1074,14 @@ function getStrokeBounds(stroke) {
   }
   return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY, centerY: (minY + maxY) / 2 };
 }
-
+ 
 function normalizeCloseStrokeRows(strokes) {
   const penStrokeEntries = strokes
     .map((stroke, index) => ({ stroke, index, bounds: getStrokeBounds(stroke) }))
     .filter((entry) => entry.stroke.mode !== "eraser" && entry.bounds && entry.bounds.height < 90);
-
+ 
   if (penStrokeEntries.length < 3) return strokes;
-
+ 
   const rows = [];
   for (const entry of penStrokeEntries) {
     const row = rows.find((candidate) => Math.abs(candidate.centerY - entry.bounds.centerY) < 26);
@@ -841,14 +1092,14 @@ function normalizeCloseStrokeRows(strokes) {
       rows.push({ centerY: entry.bounds.centerY, entries: [entry] });
     }
   }
-
+ 
   rows.sort((a, b) => a.centerY - b.centerY);
   if (rows.length < 2) return strokes;
-
+ 
   const gaps = rows.slice(1).map((row, index) => row.centerY - rows[index].centerY).filter((gap) => gap > 18 && gap < 80);
   if (!gaps.length) return strokes;
   const targetGap = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
-
+ 
   const shifts = new Map();
   let expectedY = rows[0].centerY;
   rows.forEach((row, rowIndex) => {
@@ -856,7 +1107,7 @@ function normalizeCloseStrokeRows(strokes) {
     const shift = Math.max(-INK_ENGINE.maxRowShift, Math.min(INK_ENGINE.maxRowShift, expectedY - row.centerY));
     for (const entry of row.entries) shifts.set(entry.index, shift);
   });
-
+ 
   return strokes.map((stroke, index) => {
     const shift = shifts.get(index) || 0;
     if (!shift || stroke.mode === "eraser") return stroke;
@@ -865,7 +1116,7 @@ function normalizeCloseStrokeRows(strokes) {
     return moved;
   });
 }
-
+ 
 function beautifyCurrentPage() {
   const page = getCurrentPage();
   if (!page) return;
@@ -875,7 +1126,7 @@ function beautifyCurrentPage() {
   renderAll();
   setStatus("Refined handwriting. Raw strokes are still saved for future AI cleanup.");
 }
-
+ 
 async function redrawWithPaper(targetContext, width, height, page) {
   renderPaperBackground(targetContext, width, height, page?.themeId);
   await drawPageImage(targetContext, page, width, height);
@@ -893,7 +1144,7 @@ async function redrawWithPaper(targetContext, width, height, page) {
   targetContext.drawImage(strokeLayer, 0, 0);
   targetContext.restore();
 }
-
+ 
 async function createPageExportCanvas(scale = Math.max(2, window.devicePixelRatio || 1), page = getCurrentPage()) {
   if (!page) return null;
   const rect = DOM.board.getBoundingClientRect();
@@ -905,11 +1156,11 @@ async function createPageExportCanvas(scale = Math.max(2, window.devicePixelRati
   await redrawWithPaper(exportContext, rect.width, rect.height, page);
   return exportCanvas;
 }
-
+ 
 function safeFileName(text, fallback = "notebook-page") {
   return (text || fallback).replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || fallback;
 }
-
+ 
 async function exportPageAsPng() {
   const page = getCurrentPage();
   const canvas = await createPageExportCanvas();
@@ -922,60 +1173,126 @@ async function exportPageAsPng() {
   renderToolbarState();
   setStatus("Current page saved as high-resolution PNG.");
 }
-
+ 
+// ─── FIX: writePdfDocument — professional A4 layout ──────────────────────────
 function writePdfDocument(printWindow, title, pages) {
-  const date = new Date().toLocaleDateString();
-  const pageMarkup = pages.map((item) => `
+  const date = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const pageMarkup = pages.map((item, i) => `
     <section class="sheet">
-      <div class="meta"><div><h1>${escapeHtml(item.pageName)}</h1><span>${escapeHtml(item.projectName)}</span></div><span>${date}</span></div>
-      <img src="${item.dataUrl}" alt="${escapeHtml(item.pageName)}" />
+      <header class="sheet-header">
+        <div class="sheet-title-block">
+          <span class="project-label">${escapeHtml(item.projectName)}</span>
+          <h1 class="page-name">${escapeHtml(item.pageName)}</h1>
+        </div>
+        <div class="sheet-meta">
+          <span class="page-num">Page ${i + 1} of ${pages.length}</span>
+          <span class="date-stamp">${date}</span>
+        </div>
+      </header>
+      <div class="canvas-wrap">
+        <img src="${item.dataUrl}" alt="${escapeHtml(item.pageName)}" />
+      </div>
     </section>`).join("");
-
+ 
   printWindow.document.open();
   printWindow.document.write(`<!doctype html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>${escapeHtml(title)}</title>
   <style>
-    @page { size: A4; margin: 12mm; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; color: #111827; background: #fff; }
-    .sheet { min-height: 100vh; padding: 0; display: grid; gap: 10px; align-content: start; break-after: page; page-break-after: always; }
+    @page { size: A4 portrait; margin: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #f0ede8;
+      color: #111827;
+    }
+    @media print {
+      body { background: #fff; }
+      .sheet { box-shadow: none !important; border-radius: 0 !important; margin: 0 !important; min-height: 100vh; }
+    }
+    @media screen {
+      body { padding: 24px; }
+      .sheet {
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(17,24,39,.14);
+        margin: 0 auto 28px;
+        max-width: 800px;
+      }
+    }
+    .sheet {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 22mm 18mm 18mm;
+      break-after: page;
+      page-break-after: always;
+    }
     .sheet:last-child { break-after: auto; page-break-after: auto; }
-    .meta { display: flex; justify-content: space-between; align-items: end; gap: 18px; color: #4b5563; font-size: 11px; }
-    h1 { margin: 0; color: #111827; font-size: 16px; }
-    img { width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(17,24,39,.12); background: #fff; }
-    @media screen { body { background: #f7f7f5; padding: 18px; } .sheet { background: #fff; border-radius: 14px; padding: 18px; margin: 0 auto 18px; max-width: 920px; box-shadow: 0 16px 42px rgba(17,24,39,.10); } }
+    .sheet-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1.5px solid #e5e7eb;
+      margin-bottom: 16px;
+      flex-shrink: 0;
+    }
+    .project-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #6b7280;
+      margin-bottom: 3px;
+    }
+    .page-name { font-size: 18px; font-weight: 700; color: #111827; line-height: 1.1; }
+    .sheet-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+    .page-num { font-size: 10px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; }
+    .date-stamp { font-size: 11px; color: #6b7280; font-weight: 500; }
+    .canvas-wrap { flex: 1; display: flex; align-items: flex-start; }
+    .canvas-wrap img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 10px;
+      border: 1px solid rgba(17,24,39,.09);
+    }
   </style>
 </head>
 <body>
   ${pageMarkup}
-  <script>window.addEventListener('load', () => { setTimeout(() => { window.focus(); window.print(); }, 250); });<\/script>
+  <script>window.addEventListener('load', () => { setTimeout(() => { window.focus(); window.print(); }, 400); });<\/script>
 </body>
 </html>`);
   printWindow.document.close();
 }
-
+// ─────────────────────────────────────────────────────────────────────────────
+ 
 async function exportPageAsPdf(exportType = "page") {
   const page = getCurrentPage();
   const project = getSelectedProject();
   if (!page || !project) return;
-
+ 
   const currentPageOnly = exportType === "page";
-
+ 
   const pagesToExport = currentPageOnly ? [page] : project.pages;
-
+ 
   const title = currentPageOnly
     ? `${project.name || "Notebook"} — ${page.name || "Page"}`
     : `${project.name || "Notebook"} — Whole Project`;
-
+ 
   const printWindow = window.open("", "_blank");
   if (!printWindow) {
     setStatus("Allow popups, then try PDF export again.");
     return;
   }
   printWindow.document.write("<p style='font-family:system-ui;padding:24px'>Preparing PDF pages...</p>");
-
+ 
   const exportPages = [];
   for (const item of pagesToExport) {
     const canvas = await createPageExportCanvas(2, item);
@@ -987,31 +1304,31 @@ async function exportPageAsPdf(exportType = "page") {
       });
     }
   }
-
+ 
   writePdfDocument(printWindow, title, exportPages);
   state.exportMenuOpen = false;
   renderToolbarState();
   setStatus(currentPageOnly ? "PDF export opened for this page. Choose Save as PDF." : "PDF export opened for the whole project. Choose Save as PDF.");
 }
+ 
 function openPdfChoiceModal() {
   const project = getSelectedProject();
   if (!project) return;
-
-  // If there is only one page, directly export this page
+ 
   if (project.pages.length <= 1) {
     exportPageAsPdf("page");
     return;
   }
-
+ 
   DOM.pdfChoiceModal.hidden = false;
   state.exportMenuOpen = false;
   renderToolbarState();
 }
-
+ 
 function closePdfChoiceModal() {
   DOM.pdfChoiceModal.hidden = true;
 }
-
+ 
 function uploadPictureToPage(file) {
   const page = getCurrentPage();
   if (!page || !file) return;
@@ -1019,22 +1336,47 @@ function uploadPictureToPage(file) {
     setStatus("Please upload an image file.");
     return;
   }
+ 
   const reader = new FileReader();
   reader.onload = () => {
-    page.backgroundImage = {
-      dataUrl: reader.result,
-      name: file.name,
-      fit: "contain",
+    const img = new Image();
+    img.onload = () => {
+      const rect = DOM.board.getBoundingClientRect();
+      const maxWidth = rect.width * 0.6;
+      const maxHeight = rect.height * 0.6;
+      let width = img.width;
+      let height = img.height;
+      const ratio = width / height;
+      if (width > maxWidth) {
+        width = maxWidth;
+        height = width / ratio;
+      }
+      if (height > maxHeight) {
+        height = maxHeight;
+        width = height * ratio;
+      }
+ 
+      page.backgroundImage = {
+        dataUrl: reader.result,
+        name: file.name,
+        x: (rect.width - width) / 2,
+        y: (rect.height - height) / 2,
+        width,
+        height,
+        fit: "manual",
+      };
+      page.redoStack = [];
+      saveNow();
+      renderAll();
+      setMode("move");
+      setStatus("Picture added. Drag to move, drag corners to resize.");
     };
-    page.redoStack = [];
-    saveNow();
-    renderAll();
-    setStatus("Picture added. You can now write on top of it.");
+    img.src = reader.result;
   };
   reader.onerror = () => setStatus("Could not read that picture.");
   reader.readAsDataURL(file);
 }
-
+ 
 function removePagePicture() {
   const page = getCurrentPage();
   if (!page?.backgroundImage) {
@@ -1046,17 +1388,19 @@ function removePagePicture() {
   renderAll();
   setStatus("Picture removed. Your handwriting stayed on the page.");
 }
-
+ 
 function toggleExportMenu() {
   state.exportMenuOpen = !state.exportMenuOpen;
   renderToolbarState();
 }
-
+ 
 function startStroke(event) {
+  if (state.mode === "move") return;
+  if (event.button === 2) return; // right-click is handled separately as eraser
   if (event.button !== 0 && event.pointerType !== "pen") return;
   const page = getSelectedPage();
   if (!page) return;
-
+ 
   event.preventDefault();
   DOM.board.setPointerCapture(event.pointerId);
   const firstPoint = getPoint(event);
@@ -1072,7 +1416,7 @@ function startStroke(event) {
   };
   queueRender();
 }
-
+ 
 function getPoint(event) {
   const rect = DOM.board.getBoundingClientRect();
   const pressure = event.pressure && event.pressure > 0 ? event.pressure : event.pointerType === "pen" ? 0.65 : 0.5;
@@ -1083,12 +1427,12 @@ function getPoint(event) {
     time: performance.now(),
   };
 }
-
+ 
 function getEventPoints(event) {
   const sourceEvents = typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [event];
   return sourceEvents.map(getPoint);
 }
-
+ 
 function updateLiveStrokePoints() {
   if (!state.activeStroke) return;
   const rawPoints = state.activeStroke.rawPoints || state.activeStroke.points || [];
@@ -1097,7 +1441,7 @@ function updateLiveStrokePoints() {
   if (delayedPoints.length < 2) delayedPoints = rawPoints.slice(0, Math.min(rawPoints.length, 2));
   state.activeStroke.points = smoothPoints(simplifyClosePoints(delayedPoints, 0.55), INK_ENGINE.liveSmoothingPasses);
 }
-
+ 
 function extendStroke(event) {
   if (!state.isDrawing || state.activePointerId !== event.pointerId || !state.activeStroke) return;
   event.preventDefault();
@@ -1114,7 +1458,7 @@ function extendStroke(event) {
   updateLiveStrokePoints();
   queueRender();
 }
-
+ 
 function finishStroke(event) {
   if (!state.isDrawing || state.activePointerId !== event.pointerId) return;
   const page = getSelectedPage();
@@ -1135,7 +1479,7 @@ function finishStroke(event) {
   renderCanvas();
   setStatus("Stroke saved as raw points + smooth ink.");
 }
-
+ 
 function undoStroke() {
   const page = getCurrentPage();
   if (!page || !page.strokes.length) return;
@@ -1145,7 +1489,7 @@ function undoStroke() {
   renderAll();
   setStatus("Stroke undone.");
 }
-
+ 
 function redoStroke() {
   const page = getCurrentPage();
   if (!page || !page.redoStack.length) return;
@@ -1155,7 +1499,7 @@ function redoStroke() {
   renderAll();
   setStatus("Stroke restored.");
 }
-
+ 
 function clearCurrentPage() {
   const page = getCurrentPage();
   if (!page) return;
@@ -1168,7 +1512,7 @@ function clearCurrentPage() {
   renderAll();
   setStatus("Page cleared.");
 }
-
+ 
 function renderProjectList() {
   DOM.projectList.innerHTML = state.projects
     .map((project) => {
@@ -1191,7 +1535,7 @@ function renderProjectList() {
             })
             .join("")}</div>`
         : "";
-
+ 
       return `
         <div class="project-card ${active ? "is-active" : ""} ${project.expanded ? "is-open" : ""}">
           <div class="project-row">
@@ -1209,7 +1553,7 @@ function renderProjectList() {
     })
     .join("");
 }
-
+ 
 function pageMenuHtml(projectId, pageId, type) {
   const renameAction = type === "project" ? `rename-project` : `rename-page`;
   const deleteAction = type === "project" ? `delete-project` : `delete-page`;
@@ -1219,7 +1563,7 @@ function pageMenuHtml(projectId, pageId, type) {
       <button data-action="${deleteAction}" data-project-id="${projectId}" ${pageId ? `data-page-id="${pageId}"` : ""}>Delete</button>
     </div>`;
 }
-
+ 
 function renderPalettePicker() {
   DOM.paletteList.innerHTML = PALETTES.map((palette) => {
     const active = palette.id === state.selectedPaletteId;
@@ -1235,7 +1579,7 @@ function renderPalettePicker() {
       </button>`;
   }).join("");
 }
-
+ 
 function renderColorSwatches() {
   DOM.colorSwatches.innerHTML = INK_COLORS
     .map(
@@ -1244,16 +1588,20 @@ function renderColorSwatches() {
     )
     .join("");
 }
-
+ 
 function renderToolbarState() {
   const project = getSelectedProject();
   const page = getSelectedPage();
   DOM.projectTitle.textContent = project ? project.name : "No project";
   DOM.pageTitle.textContent = page ? page.name : "No page";
   DOM.brushSize.value = String(state.brushSize);
-  if (DOM.toolSelect) DOM.toolSelect.value = state.mode === "eraser" ? "pen" : state.mode;
-  DOM.penBtn.classList.toggle("is-active", state.mode !== "eraser");
+  if (DOM.toolSelect) DOM.toolSelect.value = (state.mode === "eraser" || state.mode === "move") ? "pen" : state.mode;
+  DOM.penBtn.classList.toggle("is-active", state.mode !== "eraser" && state.mode !== "move");
   DOM.eraserBtn.classList.toggle("is-active", state.mode === "eraser");
+  const moveBtn = document.getElementById("moveBtn");
+  if (moveBtn) moveBtn.classList.toggle("is-active", state.mode === "move");
+  const alignControls = document.getElementById("alignControls");
+  if (alignControls) alignControls.hidden = !(state.mode === "move" && page?.backgroundImage);
   if (DOM.removeImageBtn) DOM.removeImageBtn.disabled = !page?.backgroundImage;
   DOM.appShell.classList.toggle("sidebar-open", state.sidebarOpen);
   DOM.appShell.classList.toggle("sidebar-collapsed", !state.sidebarOpen);
@@ -1261,87 +1609,87 @@ function renderToolbarState() {
   if (DOM.exportMenu) DOM.exportMenu.hidden = !state.exportMenuOpen;
   applyTheme();
 }
-
+ 
 function renderAllSidebar() {
   renderProjectList();
   renderPalettePicker();
   renderToolbarState();
 }
-
+ 
 function renderAll() {
   ensureWorkspace();
-
+ 
   const page = getSelectedPage();
   const themeId = page?.themeId || state.selectedPaletteId;
   state.selectedPaletteId = themeId;
   applyPaperTheme(themeId);
-
+ 
   renderAllSidebar();
   renderColorSwatches();
   renderImageLayer();
   renderCanvas();
 }
-
+ 
 function handleSidebarClick(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   const action = button.dataset.action;
   const projectId = button.dataset.projectId;
   const pageId = button.dataset.pageId;
-
+ 
   if (action === "select-project") {
     if (event.target.closest(".menu-button")) return;
     selectProject(projectId);
     return;
   }
-
+ 
   if (action === "toggle-project-menu") {
     state.menu = state.menu?.type === "project" && state.menu?.id === projectId ? null : { type: "project", id: projectId };
     renderAllSidebar();
     return;
   }
-
+ 
   if (action === "toggle-page-menu") {
     state.menu = state.menu?.type === "page" && state.menu?.id === pageId ? null : { type: "page", id: pageId };
     renderAllSidebar();
     return;
   }
-
+ 
   if (action === "select-page") {
     selectPage(projectId, pageId);
     return;
   }
-
+ 
   if (action === "rename-project") {
     renameProject(projectId);
     return;
   }
-
+ 
   if (action === "delete-project") {
     deleteProject(projectId);
     return;
   }
-
+ 
   if (action === "rename-page") {
     renamePage(projectId, pageId);
     return;
   }
-
+ 
   if (action === "delete-page") {
     deletePage(projectId, pageId);
     return;
   }
-
+ 
   if (action === "select-palette") {
     setActivePalette(button.dataset.paletteId);
     return;
   }
-
+ 
   if (action === "select-color") {
     setSelectedColor(button.dataset.color);
   }
 }
-
+ 
 function handleToolbarClick(event) {
   const button = event.target.closest("button[data-toolbar-action]");
   if (!button) return;
@@ -1350,7 +1698,11 @@ function handleToolbarClick(event) {
   if (action === "new-project") createProject();
   if (action === "new-page") createPage();
   if (action === "pen") setMode("pen");
+  if (action === "move") setMode("move");
   if (action === "eraser") setMode("eraser");
+  if (action === "align-left") alignImage("left");
+  if (action === "align-center") alignImage("center");
+  if (action === "align-right") alignImage("right");
   if (action === "undo") undoStroke();
   if (action === "redo") redoStroke();
   if (action === "beautify") beautifyCurrentPage();
@@ -1366,7 +1718,7 @@ function handleToolbarClick(event) {
   if (action === "export-pdf") openPdfChoiceModal();
   if (action === "clear") clearCurrentPage();
 }
-
+ 
 function initEvents() {
   DOM.sidebar.addEventListener("click", handleSidebarClick);
   DOM.appShell.addEventListener("click", handleToolbarClick);
@@ -1376,45 +1728,67 @@ function initEvents() {
     if (!button) return;
     setSelectedColor(button.dataset.color);
   });
-
+ 
   DOM.toolSelect?.addEventListener("change", (event) => {
     setMode(event.target.value);
   });
-
+ 
   DOM.brushSize.addEventListener("input", (event) => {
     state.brushSize = Number(event.target.value);
     scheduleSave();
   });
-
-    DOM.pictureInput?.addEventListener("change", (event) => {
+ 
+  DOM.pictureInput?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     uploadPictureToPage(file);
     event.target.value = "";
   });
-
+ 
   DOM.pdfThisPageBtn?.addEventListener("click", () => {
     closePdfChoiceModal();
     exportPageAsPdf("page");
   });
-
+ 
   DOM.pdfWholeProjectBtn?.addEventListener("click", () => {
     closePdfChoiceModal();
     exportPageAsPdf("project");
   });
-
+ 
   DOM.pdfCancelBtn?.addEventListener("click", () => {
     closePdfChoiceModal();
   });
-
-  DOM.board.addEventListener("pointerdown", startStroke);
-
+ 
+  // ── Drawing events ──────────────────────────────────────────────────────────
   DOM.board.addEventListener("pointerdown", startStroke);
   DOM.board.addEventListener("pointermove", extendStroke);
   DOM.board.addEventListener("pointerup", finishStroke);
   DOM.board.addEventListener("pointercancel", finishStroke);
   DOM.board.addEventListener("lostpointercapture", finishStroke);
+ 
+  // Block browser context menu on the canvas so right-click eraser works
   DOM.board.addEventListener("contextmenu", (event) => event.preventDefault());
-
+ 
+  // ── Right-click = temporary eraser ─────────────────────────────────────────
+  DOM.board.addEventListener("pointerdown", (event) => {
+    if (event.button !== 2) return;
+    event.preventDefault();
+    state._prevMode = state.mode;
+    // Silently switch to eraser (skip setMode's scheduleSave/setStatus noise)
+    state.mode = "eraser";
+    // Kick off an eraser stroke immediately
+    startStroke({ ...event, button: 0 });
+  });
+ 
+  DOM.board.addEventListener("pointerup", (event) => {
+    if (event.button !== 2 || state._prevMode === undefined) return;
+    finishStroke({ ...event, pointerId: state.activePointerId ?? event.pointerId });
+    state.mode = state._prevMode;
+    delete state._prevMode;
+    renderToolbarState();
+    setStatus(`${TOOL_PRESETS[state.mode]?.label ?? state.mode} restored.`);
+  });
+  // ───────────────────────────────────────────────────────────────────────────
+ 
   document.addEventListener("click", (event) => {
     if (event.target.closest(".menu-button") || event.target.closest(".menu-popover") || event.target.closest(".export-group")) return;
     let changed = false;
@@ -1428,20 +1802,17 @@ function initEvents() {
     }
     if (changed) renderAllSidebar();
   });
-
+ 
   window.addEventListener("resize", () => {
     resizeCanvas();
-    if (window.innerWidth > 980 && state.sidebarOpen === false) {
-      // Keep user choice on mobile, but don't force the sidebar closed on desktop.
-    }
   });
-
+ 
   if ("ResizeObserver" in window) {
     const observer = new ResizeObserver(() => resizeCanvas());
     observer.observe(DOM.board.parentElement);
   }
 }
-
+ 
 function boot() {
   loadWorkspace();
   initEvents();
@@ -1455,13 +1826,12 @@ function boot() {
   setStatus(state.projects.length ? "Workspace loaded." : "Autosaves locally in this browser.");
   setMode(state.mode);
 }
-
+ 
 // Future AI hooks:
 // - beautifyCurrentPage() is now the local refinement stage; replace it later with a real ML handwriting model.
 // - Add handwriting recognition for searchable notes.
 // - Learn the user's personal writing style and recreate it cleanly.
 // - Transform rough stroke input into personalized clean handwriting.
-
+ 
 boot();
-
-
+initImageInteraction(DOM, getCurrentPage, renderImageLayer, saveNow);

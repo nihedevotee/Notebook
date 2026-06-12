@@ -76,6 +76,7 @@
 
             <div class="tool-strip">
               <button id="penBtn" class="tool-button primary is-active" type="button" data-toolbar-action="pen" title="Pen">Pen</button>
+              <button id="moveBtn" class="tool-button" type="button" data-toolbar-action="move" title="Move / resize image">✋ Move</button>
               <button id="eraserBtn" class="tool-button" type="button" data-toolbar-action="eraser" title="Eraser">Eraser</button>
               <button id="undoBtn" class="tool-button" type="button" data-toolbar-action="undo" title="Undo">Undo</button>
               <button id="redoBtn" class="tool-button" type="button" data-toolbar-action="redo" title="Redo">Redo</button>
@@ -83,6 +84,14 @@
               <button id="saveBtn" class="tool-button" type="button" data-toolbar-action="save" title="Save">Save</button>
               <button id="uploadImageBtn" class="tool-button" type="button" data-toolbar-action="upload-image" title="Upload a picture and write over it">📷 Picture</button>
               <button id="removeImageBtn" class="tool-button" type="button" data-toolbar-action="remove-image" title="Remove uploaded picture">Remove Pic</button>
+
+              <!-- Alignment controls — visible only in Move mode when an image is present -->
+              <span id="alignControls" class="align-controls" hidden>
+                <button class="tool-button align-btn" type="button" data-toolbar-action="align-left"  title="Align image left">⬅ Left</button>
+                <button class="tool-button align-btn" type="button" data-toolbar-action="align-center" title="Align image center">⬛ Center</button>
+                <button class="tool-button align-btn" type="button" data-toolbar-action="align-right" title="Align image right">➡ Right</button>
+              </span>
+
               <button id="themeToggle" class="tool-button ghost" type="button" data-toolbar-action="theme-toggle" title="Toggle dark mode">🌙 Dark</button>
               <div class="export-group">
                 <button id="exportBtn" class="tool-button" type="button" data-toolbar-action="export" title="Export options" aria-haspopup="true" aria-expanded="false">Export ▾</button>
@@ -90,18 +99,17 @@
                   <button type="button" data-toolbar-action="export-pdf">📄 Download PDF...</button>
                   <button type="button" data-toolbar-action="export-png">🖼️ Save current page as PNG</button>
                 </div>
-<div id="pdfChoiceModal" class="pdf-choice-modal" hidden>
-  <div class="pdf-choice-card">
-    <h3>Download PDF</h3>
-    <p>Sir, what would you like to download?</p>
-
-    <div class="pdf-choice-actions">
-      <button type="button" id="pdfThisPageBtn">PDF of this page only</button>
-      <button type="button" id="pdfWholeProjectBtn">PDF of whole project</button>
-      <button type="button" id="pdfCancelBtn" class="ghost">Cancel</button>
-    </div>
-  </div>
-</div>
+                <div id="pdfChoiceModal" class="pdf-choice-modal" hidden>
+                  <div class="pdf-choice-card">
+                    <h3>Download PDF</h3>
+                    <p>Sir, what would you like to download?</p>
+                    <div class="pdf-choice-actions">
+                      <button type="button" id="pdfThisPageBtn">PDF of this page only</button>
+                      <button type="button" id="pdfWholeProjectBtn">PDF of whole project</button>
+                      <button type="button" id="pdfCancelBtn" class="ghost">Cancel</button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <button id="clearBtn" class="tool-button danger" type="button" data-toolbar-action="clear" title="Clear current page">Clear</button>
             </div>
