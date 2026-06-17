@@ -40,7 +40,9 @@ const DOM = {
   newProjectBtn: document.getElementById("newProjectBtn"),
   newPageBtn: document.getElementById("newPageBtn"),
   projectList: document.getElementById("projectList"),
-  paletteList: document.getElementById("paletteList"),
+  paletteToggleBtn: document.getElementById("paletteToggleBtn"),
+  paletteMenu: document.getElementById("paletteMenu"),
+  paletteActiveName: document.getElementById("paletteActiveName"),
   projectTitle: document.getElementById("projectTitle"),
   pageTitle: document.getElementById("pageTitle"),
   colorSwatches: document.getElementById("colorSwatches"),
@@ -84,6 +86,7 @@ const state = {
   sidebarOpen: true,
   theme: "light",
   exportMenuOpen: false,
+  paletteMenuOpen: false,
   menu: null,
   isDrawing: false,
   activePointerId: null,
@@ -462,7 +465,7 @@ function toggleTheme() {
 }
  
 function getEmojiForId(id, fallback = "✨") {
-  const emojis = ["😊", "🎨", "📚", "🚀", "💡", "✨", "🌙", "📝", "🧠", "🌿"];
+  const emojis = ["😊", "🎨", "📚", "🚀", "💡", "✨", "🌙", "📝", "🌿", "⭐"];
   let sum = 0;
   for (const char of String(id || fallback)) sum += char.charCodeAt(0);
   return emojis[sum % emojis.length];
@@ -526,6 +529,7 @@ function setActivePalette(id) {
  
   applyPaperTheme(id);
   scheduleSave();
+  state.paletteMenuOpen = false;
   renderPalettePicker();
   setStatus("Notebook theme changed.");
 }
@@ -1629,26 +1633,42 @@ function pageMenuHtml(projectId, pageId, type) {
 }
  
 function renderPalettePicker() {
-  DOM.paletteList.innerHTML = PALETTES.map((palette) => {
-    const active = palette.id === state.selectedPaletteId;
-    return `
-      <button class="palette-card ${active ? "is-active" : ""}" data-action="select-palette" data-palette-id="${palette.id}">
-        <span class="palette-meta"><span class="palette-title">${escapeHtml(palette.name)}</span><span class="palette-dot">✨</span></span>
-        <span class="palette-samples">
-          <span class="sample" style="background:${palette.bg}"></span>
-          <span class="sample" style="background:${palette.line}"></span>
-          <span class="sample" style="background:${palette.margin}"></span>
-          <span class="sample" style="background:${palette.border}"></span>
-        </span>
-      </button>`;
-  }).join("");
+  const active = getPalette(state.selectedPaletteId);
+  if (DOM.paletteActiveName) DOM.paletteActiveName.textContent = active.name;
+
+  if (DOM.paletteMenu) {
+    DOM.paletteMenu.innerHTML = PALETTES.map((palette) => {
+      const isActive = palette.id === state.selectedPaletteId;
+      return `
+        <button class="palette-card ${isActive ? "is-active" : ""}" data-action="select-palette" data-palette-id="${palette.id}" data-tooltip="${escapeHtml(palette.name)}">
+          <span class="palette-meta"><span class="palette-title">${escapeHtml(palette.name)}</span><span class="palette-dot">✨</span></span>
+          <span class="palette-samples">
+            <span class="sample" style="background:${palette.bg}"></span>
+            <span class="sample" style="background:${palette.line}"></span>
+            <span class="sample" style="background:${palette.margin}"></span>
+            <span class="sample" style="background:${palette.border}"></span>
+          </span>
+        </button>`;
+    }).join("");
+    DOM.paletteMenu.hidden = !state.paletteMenuOpen;
+  }
+
+  if (DOM.paletteToggleBtn) {
+    DOM.paletteToggleBtn.classList.toggle("is-active", state.paletteMenuOpen);
+    DOM.paletteToggleBtn.setAttribute("aria-expanded", String(state.paletteMenuOpen));
+  }
+}
+
+function togglePaletteMenu(force) {
+  state.paletteMenuOpen = typeof force === "boolean" ? force : !state.paletteMenuOpen;
+  renderPalettePicker();
 }
  
 function renderColorSwatches() {
   DOM.colorSwatches.innerHTML = INK_COLORS
     .map(
       (color) => `
-        <button class="color-swatch ${state.selectedColor === color ? "is-active" : ""}" data-action="select-color" data-color="${color}" title="${color}" style="--swatch:${color}"></button>`,
+        <button class="color-swatch ${state.selectedColor === color ? "is-active" : ""}" data-action="select-color" data-color="${color}" data-tooltip="${color}" style="--swatch:${color}"></button>`,
     )
     .join("");
 }
@@ -1779,6 +1799,7 @@ function handleToolbarClick(event) {
   if (action === "remove-image") removePagePicture();
   if (action === "theme-toggle") toggleTheme();
   if (action === "export") toggleExportMenu();
+  if (action === "toggle-palette") togglePaletteMenu();
   if (action === "export-png") exportPageAsPng();
   if (action === "export-pdf") openPdfChoiceModal();
   if (action === "clear") clearCurrentPage();
@@ -1868,6 +1889,10 @@ function initEvents() {
     if (state.exportMenuOpen) {
       state.exportMenuOpen = false;
       changed = true;
+    }
+    if (state.paletteMenuOpen && !event.target.closest(".palette-trigger-row")) {
+      state.paletteMenuOpen = false;
+      renderPalettePicker();
     }
     if (changed) renderAllSidebar();
   });

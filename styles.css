@@ -86,11 +86,76 @@ button {
 .sidebar-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
+}
+
+/* Clean labeled action buttons */
+.sidebar-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.82);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 120ms ease;
+  cursor: pointer;
+  width: 100%;
+}
+
+.sidebar-action-btn:hover {
+  background: rgba(255,255,255,0.98);
+  border-color: var(--border-strong);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.09);
+  transform: translateY(-1px);
+}
+
+.sidebar-action-btn:hover .sidebar-action-icon {
+  animation: icon-wiggle 480ms ease-in-out;
+}
+
+.sidebar-action-icon {
+  font-size: 1rem;
+  display: inline-block;
+  transform-origin: 50% 80%;
+  flex-shrink: 0;
+}
+
+.sidebar-action-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Collapsed sidebar: icon only */
+.app-shell.sidebar-collapsed .sidebar-action-label {
+  display: none !important;
+}
+
+.app-shell.sidebar-collapsed .sidebar-actions {
+  grid-template-columns: 1fr;
+}
+
+.app-shell.sidebar-collapsed .sidebar-action-btn {
+  justify-content: center;
+  padding: 10px;
+  gap: 0;
+}
+
+:root[data-theme="dark"] .sidebar-action-btn {
+  background: rgba(255,255,255,0.07);
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .sidebar-action-btn:hover {
+  background: rgba(255,255,255,0.13);
 }
 
 .small-button,
 .icon-button,
+.icon-btn,
 .tool-button,
 .menu-button,
 .project-main,
@@ -369,6 +434,10 @@ button {
   outline-offset: 2px;
 }
 
+.color-swatch:hover {
+  animation: icon-wiggle 480ms ease-in-out;
+}
+
 .brush-slider {
   width: 140px;
   accent-color: var(--accent);
@@ -396,6 +465,157 @@ button {
 .tool-button.danger {
   color: var(--danger);
   background: rgba(255, 241, 239, 0.95);
+}
+
+/* ── Milanote-style minimal icon buttons ─────────────────────────────── */
+.icon-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.icon-btn .icon-glyph {
+  font-size: 1.08rem;
+  line-height: 1;
+  display: inline-block;
+  transform-origin: 50% 80%;
+}
+
+.icon-btn.is-active {
+  border-color: rgba(45, 108, 223, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(45, 108, 223, 0.15);
+  background: rgba(235, 242, 255, 0.95);
+}
+
+.icon-btn.danger:hover {
+  color: var(--danger);
+  background: rgba(255, 241, 239, 0.95);
+  border-color: rgba(181, 69, 60, 0.3);
+}
+
+.icon-btn.ghost {
+  background: transparent;
+}
+
+@keyframes icon-wiggle {
+  0% { transform: rotate(0deg); }
+  15% { transform: rotate(-12deg); }
+  30% { transform: rotate(10deg); }
+  45% { transform: rotate(-8deg); }
+  60% { transform: rotate(6deg); }
+  75% { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.icon-btn:hover .icon-glyph,
+[data-tooltip]:hover .icon-glyph {
+  animation: icon-wiggle 480ms ease-in-out;
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+}
+
+/* Tooltip label, Milanote-style: small dark pill below the icon */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  white-space: nowrap;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #1a1f2a;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 60;
+  transition: opacity 140ms ease, transform 140ms ease;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.22);
+}
+
+[data-tooltip]::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  border: 5px solid transparent;
+  border-bottom-color: #1a1f2a;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 60;
+  transition: opacity 140ms ease;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:focus-visible::before {
+  opacity: 1;
+}
+
+:root[data-theme="dark"] [data-tooltip]::after {
+  background: #f4f6fb;
+  color: #1a1f2a;
+}
+
+:root[data-theme="dark"] [data-tooltip]::before {
+  border-bottom-color: #f4f6fb;
+}
+
+/* ── Palette popover ──────────────────────────────────────────────────── */
+.palette-trigger-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.palette-active-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.palette-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  display: grid;
+  gap: 4px;
+  min-width: 240px;
+  padding: 7px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  box-shadow: var(--shadow);
+}
+
+.palette-menu[hidden] {
+  display: none;
 }
 
 .paper-shell {
@@ -594,6 +814,12 @@ canvas {
   .app-shell.sidebar-collapsed .palette-samples {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  /* Hide palette dot grids entirely in collapsed mode — just show the icon */
+  .app-shell.sidebar-collapsed .palette-trigger-row .palette-active-name,
+  .app-shell.sidebar-collapsed .palette-trigger-row .palette-menu {
+    display: none !important;
+  }
 }
 
 @media (max-width: 920px) {
@@ -715,6 +941,16 @@ canvas {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 3px;
+  }
+
+  /* Clean collapsed palette trigger */
+  .app-shell.sidebar-collapsed .palette-active-name,
+  .app-shell.sidebar-collapsed .palette-menu {
+    display: none !important;
+  }
+
+  .app-shell.sidebar-collapsed .palette-trigger-row {
+    justify-content: center;
   }
 }
 
@@ -977,6 +1213,7 @@ button:hover {
 .palette-card:hover,
 .tool-button:hover,
 .icon-button:hover,
+.icon-btn:hover,
 .menu-button:hover,
 .small-button:hover {
   border-color: var(--border-strong);
@@ -988,6 +1225,7 @@ button:hover {
 :root[data-theme="dark"] .palette-card:hover,
 :root[data-theme="dark"] .tool-button:hover,
 :root[data-theme="dark"] .icon-button:hover,
+:root[data-theme="dark"] .icon-btn:hover,
 :root[data-theme="dark"] .menu-button:hover,
 :root[data-theme="dark"] .small-button:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
@@ -1166,6 +1404,17 @@ button:hover {
   background: rgba(181, 69, 60, 0.09);
 }
 
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+}
+
+.icon-btn.is-active {
+  background: var(--accent-soft);
+  border-color: var(--border-strong);
+}
+
 .export-group {
   position: relative;
   display: inline-flex;
@@ -1276,6 +1525,16 @@ button:hover {
     height: 12px;
   }
 
+  /* In collapsed mode, hide the active name and menu — just show the 🎨 icon */
+  .app-shell.sidebar-collapsed .palette-active-name,
+  .app-shell.sidebar-collapsed .palette-menu {
+    display: none !important;
+  }
+
+  .app-shell.sidebar-collapsed .palette-trigger-row {
+    justify-content: center;
+  }
+
   .app-shell.sidebar-collapsed .page-list,
   .app-shell.sidebar-collapsed .menu-button,
   .app-shell.sidebar-collapsed .menu-popover {
@@ -1346,8 +1605,8 @@ button:hover {
   }
 
   .paper-frame {
-    min-height: 62vh;
-    border-radius: 22px;
+    min-height: max(160vh, 1200px);
+    height: auto;
   }
 }
 
@@ -1391,8 +1650,8 @@ button:hover {
 
 .paper-frame {
   width: 100%;
-  min-height: max(calc(100vh - 150px), 1320px);
-  height: max(calc(100vh - 150px), 1320px);
+  min-height: max(160vh, 1400px);
+  height: auto;
   margin: 0;
 }
 
@@ -1424,8 +1683,8 @@ canvas {
   }
 
   .paper-frame {
-    min-height: calc(100vh - 132px);
-    height: calc(100vh - 132px);
+    min-height: max(160vh, 1400px);
+    height: auto;
   }
 }
 
@@ -1435,8 +1694,8 @@ canvas {
   }
 
   .paper-frame {
-    min-height: calc(100vh - 220px);
-    height: calc(100vh - 220px);
+    min-height: max(160vh, 1200px);
+    height: auto;
   }
 }
 
@@ -1469,8 +1728,8 @@ canvas {
 .paper-frame {
   isolation: isolate;
   width: 100%;
-  height: 100%;
-  min-height: 0;
+  min-height: max(160vh, 1400px);
+  height: auto;
   margin: 0;
 }
 
@@ -1524,33 +1783,30 @@ canvas {
     flex-direction: column;
     min-height: 0;
     overflow: auto;
-    padding: 10px 10px 0;
+    padding: 10px 10px 20px;
   }
 
   .paper-frame {
     flex: 1 0 auto;
     width: 100%;
-    min-height: calc(100vh - 150px);
-    aspect-ratio: 210 / 297;
+    min-height: max(160vh, 1400px);
     height: auto;
     margin: 0;
   }
 
   @media (min-width: 921px) {
     .paper-frame {
-      min-height: calc(100vh - 132px);
-      aspect-ratio: 210 / 297;
+      min-height: max(160vh, 1400px);
     }
   }
 
   @media (max-width: 920px) {
     .paper-shell {
-      padding: 12px 12px 0;
+      padding: 12px 12px 20px;
     }
 
     .paper-frame {
-      min-height: calc(100vh - 220px);
-      aspect-ratio: 210 / 297;
+      min-height: max(160vh, 1200px);
     }
   }
 }
@@ -1733,8 +1989,8 @@ canvas {
     width: calc(100% * var(--page-zoom)) !important;
     min-width: calc(100% * var(--page-zoom)) !important;
     height: auto !important;
-    min-height: 0 !important;
-    aspect-ratio: 210 / 297 !important;
+    min-height: max(160vh, 1400px) !important;
+    aspect-ratio: unset !important;
     transform: none !important;
     transform-origin: top left !important;
     background:

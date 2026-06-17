@@ -15,12 +15,18 @@
             <h1>Projects</h1>
             <p class="brand-subtitle">Write, sketch, export.</p>
           </div>
-          <button id="sidebarToggle" class="icon-button" type="button" title="Toggle sidebar" data-toolbar-action="sidebar-toggle">☰</button>
+          <button id="sidebarToggle" class="icon-button" type="button" data-tooltip="Toggle Sidebar" data-toolbar-action="sidebar-toggle">☰</button>
         </div>
 
         <div class="sidebar-actions">
-          <button id="newProjectBtn" class="small-button primary" type="button" data-toolbar-action="new-project"><span class="btn-icon">＋</span><span class="btn-label">New Project</span></button>
-          <button id="newPageBtn" class="small-button" type="button" data-toolbar-action="new-page"><span class="btn-icon">▣</span><span class="btn-label">New Page</span></button>
+          <button id="newProjectBtn" class="sidebar-action-btn" type="button" data-toolbar-action="new-project" data-tooltip="New Project">
+            <span class="sidebar-action-icon">📁</span>
+            <span class="sidebar-action-label">New Project</span>
+          </button>
+          <button id="newPageBtn" class="sidebar-action-btn" type="button" data-toolbar-action="new-page" data-tooltip="New Page">
+            <span class="sidebar-action-icon">📄</span>
+            <span class="sidebar-action-label">New Page</span>
+          </button>
         </div>
 
         <section class="sidebar-section">
@@ -36,7 +42,13 @@
             <h2>Palettes</h2>
             <span class="section-hint">Color Hunt inspired</span>
           </div>
-          <div id="paletteList" class="palette-list"></div>
+          <div class="palette-trigger-row">
+            <button id="paletteToggleBtn" class="icon-btn" type="button" data-toolbar-action="toggle-palette" data-tooltip="Paper Palette" aria-haspopup="true" aria-expanded="false">
+              <span class="icon-glyph" aria-hidden="true">🎨</span>
+            </button>
+            <span id="paletteActiveName" class="palette-active-name">Soft Pastel</span>
+            <div id="paletteMenu" class="palette-menu" hidden></div>
+          </div>
         </section>
       </aside>
 
@@ -84,18 +96,18 @@
             </div>
 
             <div class="tool-strip">
-              <button id="penBtn" class="tool-button primary is-active" type="button" data-toolbar-action="pen" title="Pen">Pen</button>
-              <button id="moveBtn" class="tool-button" type="button" data-toolbar-action="move" title="Move / resize image">✋ Move</button>
-              <button id="eraserBtn" class="tool-button" type="button" data-toolbar-action="eraser" title="Eraser">Eraser</button>
-              <button id="undoBtn" class="tool-button" type="button" data-toolbar-action="undo" title="Undo">Undo</button>
-              <button id="redoBtn" class="tool-button" type="button" data-toolbar-action="redo" title="Redo">Redo</button>
-              <button id="saveBtn" class="tool-button" type="button" data-toolbar-action="save" title="Save">Save</button>
-              <button id="uploadImageBtn" class="tool-button" type="button" data-toolbar-action="upload-image" title="Upload a picture and write over it">📷 Picture</button>
-              <button id="removeImageBtn" class="tool-button" type="button" data-toolbar-action="remove-image" title="Remove uploaded picture">Remove Pic</button>
+              <button id="penBtn" class="icon-btn primary is-active" type="button" data-toolbar-action="pen" data-tooltip="Pen"><span class="icon-glyph">✏️</span></button>
+              <button id="moveBtn" class="icon-btn" type="button" data-toolbar-action="move" data-tooltip="Move / Resize"><span class="icon-glyph">✋</span></button>
+              <button id="eraserBtn" class="icon-btn" type="button" data-toolbar-action="eraser" data-tooltip="Eraser"><span class="icon-glyph">🧹</span></button>
+              <button id="undoBtn" class="icon-btn" type="button" data-toolbar-action="undo" data-tooltip="Undo"><span class="icon-glyph">↩️</span></button>
+              <button id="redoBtn" class="icon-btn" type="button" data-toolbar-action="redo" data-tooltip="Redo"><span class="icon-glyph">↪️</span></button>
+              <button id="saveBtn" class="icon-btn" type="button" data-toolbar-action="save" data-tooltip="Save"><span class="icon-glyph">💾</span></button>
+              <button id="uploadImageBtn" class="icon-btn" type="button" data-toolbar-action="upload-image" data-tooltip="Upload Picture"><span class="icon-glyph">📷</span></button>
+              <button id="removeImageBtn" class="icon-btn" type="button" data-toolbar-action="remove-image" data-tooltip="Remove Picture"><span class="icon-glyph">🗑️</span></button>
 
-              <button id="themeToggle" class="tool-button ghost" type="button" data-toolbar-action="theme-toggle" title="Toggle dark mode">🌙 Dark</button>
+              <button id="themeToggle" class="icon-btn ghost" type="button" data-toolbar-action="theme-toggle" data-tooltip="Toggle Dark Mode"><span class="icon-glyph">🌙</span></button>
               <div class="export-group">
-                <button id="exportBtn" class="tool-button" type="button" data-toolbar-action="export" title="Export options" aria-haspopup="true" aria-expanded="false">Export ▾</button>
+                <button id="exportBtn" class="icon-btn" type="button" data-toolbar-action="export" data-tooltip="Export" aria-haspopup="true" aria-expanded="false"><span class="icon-glyph">⬇️</span></button>
                 <div id="exportMenu" class="export-menu" hidden>
                   <button type="button" data-toolbar-action="export-pdf">📄 Download PDF...</button>
                   <button type="button" data-toolbar-action="export-png">🖼️ Save current page as PNG</button>
@@ -112,7 +124,7 @@
                   </div>
                 </div>
               </div>
-              <button id="clearBtn" class="tool-button danger" type="button" data-toolbar-action="clear" title="Clear current page">Clear</button>
+              <button id="clearBtn" class="icon-btn danger" type="button" data-toolbar-action="clear" data-tooltip="Clear Page"><span class="icon-glyph">🗑️</span></button>
             </div>
           </div>
         </header>
