@@ -36,7 +36,8 @@ const DOM = {
   appShell: document.getElementById("appShell"),
   sidebar: document.getElementById("sidebar"),
   scrim: document.getElementById("scrim"),
-  sidebarToggle: document.getElementById("sidebarToggle"),
+  drawerPanel: document.getElementById("drawerPanel"),
+  drawerTitle: document.getElementById("drawerTitle"),
   newProjectBtn: document.getElementById("newProjectBtn"),
   newPageBtn: document.getElementById("newPageBtn"),
   projectList: document.getElementById("projectList"),
@@ -609,6 +610,8 @@ function createProject() {
   state.menu = null;
   scheduleSave();
   renderAll();
+  toggleSidebar(true);
+  if (DOM.drawerTitle) DOM.drawerTitle.textContent = "Projects";
   setStatus("New project created.");
 }
  
@@ -630,6 +633,8 @@ function createPage(projectId = state.selectedProjectId) {
   state.menu = null;
   scheduleSave();
   renderAll();
+  toggleSidebar(true);
+  if (DOM.drawerTitle) DOM.drawerTitle.textContent = "Pages";
   setStatus("New page added.");
 }
  
@@ -1632,6 +1637,13 @@ function pageMenuHtml(projectId, pageId, type) {
     </div>`;
 }
  
+function extractSolidColor(cssColor, fallback = "#888") {
+  // Pull rgb values out of rgba(...) and return a solid version at full opacity
+  const m = cssColor.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (m) return `rgb(${m[1]},${m[2]},${m[3]})`;
+  return cssColor || fallback;
+}
+
 function renderPalettePicker() {
   const active = getPalette(state.selectedPaletteId);
   if (DOM.paletteActiveName) DOM.paletteActiveName.textContent = active.name;
@@ -1639,14 +1651,18 @@ function renderPalettePicker() {
   if (DOM.paletteMenu) {
     DOM.paletteMenu.innerHTML = PALETTES.map((palette) => {
       const isActive = palette.id === state.selectedPaletteId;
+      const s1 = palette.bg;
+      const s2 = extractSolidColor(palette.line);
+      const s3 = extractSolidColor(palette.margin);
+      const s4 = extractSolidColor(palette.border);
       return `
         <button class="palette-card ${isActive ? "is-active" : ""}" data-action="select-palette" data-palette-id="${palette.id}" data-tooltip="${escapeHtml(palette.name)}">
-          <span class="palette-meta"><span class="palette-title">${escapeHtml(palette.name)}</span><span class="palette-dot">✨</span></span>
+          <span class="palette-meta"><span class="palette-title">${escapeHtml(palette.name)}</span><span class="palette-dot">${isActive ? "✨" : ""}</span></span>
           <span class="palette-samples">
-            <span class="sample" style="background:${palette.bg}"></span>
-            <span class="sample" style="background:${palette.line}"></span>
-            <span class="sample" style="background:${palette.margin}"></span>
-            <span class="sample" style="background:${palette.border}"></span>
+            <span class="sample" style="background:${s1}"></span>
+            <span class="sample" style="background:${s2}"></span>
+            <span class="sample" style="background:${s3}"></span>
+            <span class="sample" style="background:${s4}"></span>
           </span>
         </button>`;
     }).join("");
@@ -1890,7 +1906,7 @@ function initEvents() {
       state.exportMenuOpen = false;
       changed = true;
     }
-    if (state.paletteMenuOpen && !event.target.closest(".palette-trigger-row")) {
+    if (state.paletteMenuOpen && !event.target.closest(".palette-menu") && !event.target.closest("[data-toolbar-action='toggle-palette']")) {
       state.paletteMenuOpen = false;
       renderPalettePicker();
     }

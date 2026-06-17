@@ -45,113 +45,199 @@ button {
 .app-shell {
   min-height: calc(100vh - 36px);
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 0;
+  position: relative;
 }
 
+/* ── Sidebar rail (always visible slim strip) ────────────────────────── */
 .sidebar {
+  position: relative;
+  width: 64px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.58);
+  align-items: center;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  width: 64px;
+  background: rgba(255,255,255,0.72);
   border: 1px solid var(--border);
-  border-radius: 22px;
-  box-shadow: var(--shadow);
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(15,23,42,0.08);
   backdrop-filter: blur(12px);
 }
 
-.sidebar-top {
+.rail-btn {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--muted);
-}
-
-.sidebar h1,
-.document-title {
-  margin: 0;
-  font-size: 1.45rem;
-  line-height: 1.05;
-}
-
-.sidebar-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-/* Clean labeled action buttons */
-.sidebar-action-btn {
-  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 3px;
+  width: 46px;
+  padding: 8px 4px;
   border-radius: 14px;
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.82);
-  color: var(--ink);
-  font-size: 0.82rem;
-  font-weight: 700;
-  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 120ms ease;
+  border: 1px solid transparent;
+  background: transparent;
   cursor: pointer;
-  width: 100%;
+  transition: background 130ms ease, border-color 130ms ease, transform 120ms ease;
 }
 
-.sidebar-action-btn:hover {
-  background: rgba(255,255,255,0.98);
-  border-color: var(--border-strong);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.09);
+.rail-btn:hover {
+  background: rgba(255,255,255,0.95);
+  border-color: var(--border);
   transform: translateY(-1px);
 }
 
-.sidebar-action-btn:hover .sidebar-action-icon {
+.rail-btn:hover .rail-icon {
   animation: icon-wiggle 480ms ease-in-out;
 }
 
-.sidebar-action-icon {
-  font-size: 1rem;
+.rail-icon {
+  font-size: 1.3rem;
   display: inline-block;
   transform-origin: 50% 80%;
+  line-height: 1;
+}
+
+.rail-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+}
+
+/* ── Drawer (slides in over content when open) ───────────────────────── */
+.drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  width: 290px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,0.96);
+  border-right: 1px solid var(--border);
+  box-shadow: 6px 0 40px rgba(15,23,42,0.14);
+  backdrop-filter: blur(16px);
+  transform: translateX(-100%);
+  transition: transform 260ms cubic-bezier(0.4,0,0.2,1);
+  will-change: transform;
+}
+
+.app-shell.sidebar-open .drawer {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 12px;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-.sidebar-action-label {
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-/* Collapsed sidebar: icon only */
-.app-shell.sidebar-collapsed .sidebar-action-label {
-  display: none !important;
-}
-
-.app-shell.sidebar-collapsed .sidebar-actions {
-  grid-template-columns: 1fr;
-}
-
-.app-shell.sidebar-collapsed .sidebar-action-btn {
-  justify-content: center;
-  padding: 10px;
-  gap: 0;
-}
-
-:root[data-theme="dark"] .sidebar-action-btn {
-  background: rgba(255,255,255,0.07);
+.drawer-title {
+  font-size: 1rem;
+  font-weight: 800;
   color: var(--ink);
 }
 
-:root[data-theme="dark"] .sidebar-action-btn:hover {
-  background: rgba(255,255,255,0.13);
+.drawer-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: grid;
+  place-items: center;
+  transition: background 130ms ease;
 }
+
+.drawer-close:hover {
+  background: rgba(0,0,0,0.06);
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* Palette popup — floats above the rail */
+.palette-menu {
+  position: fixed;
+  top: 50%;
+  left: 72px;
+  transform: translateY(-50%);
+  z-index: 200;
+  display: grid;
+  gap: 4px;
+  min-width: 230px;
+  padding: 8px;
+  background: rgba(255,255,255,0.98);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(15,23,42,0.16);
+}
+
+.palette-menu[hidden] {
+  display: none;
+}
+
+/* Scrim covers content when drawer open */
+.scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(15,23,42,0.28);
+  border: none;
+  cursor: pointer;
+}
+
+.app-shell.sidebar-open .scrim {
+  display: block;
+}
+
+/* Dark mode */
+:root[data-theme="dark"] .rail {
+  background: rgba(30,31,34,0.88);
+}
+
+:root[data-theme="dark"] .rail-btn:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+:root[data-theme="dark"] .drawer {
+  background: rgba(28,29,32,0.97);
+}
+
+:root[data-theme="dark"] .palette-menu {
+  background: rgba(28,29,32,0.98);
+}
+
+.sidebar-top,
+.eyebrow,
+.sidebar h1,
+.brand-subtitle,
+.sidebar-actions,
+.sidebar-action-btn,
+.sidebar-action-icon,
+.sidebar-action-label {
+  display: none;
+}
+
 
 .small-button,
 .icon-button,
@@ -352,6 +438,8 @@ button {
 .sample {
   aspect-ratio: 1;
   border-radius: 999px;
+  min-width: 18px;
+  min-height: 18px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
 }
 
@@ -365,7 +453,7 @@ button {
 .toolbar {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 110;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -679,7 +767,7 @@ canvas {
 
 @media (max-width: 1080px) {
   .app-shell {
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: 64px minmax(0, 1fr);
   }
 
   .toolbar {
@@ -697,20 +785,7 @@ canvas {
   }
 
   .app-shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sidebar {
-    position: fixed;
-    inset: 12px auto 12px 12px;
-    width: min(88vw, 320px);
-    transform: translateX(-110%);
-    transition: transform 180ms ease;
-    z-index: 20;
-  }
-
-  .app-shell.sidebar-open .sidebar {
-    transform: translateX(0);
+    grid-template-columns: 64px minmax(0, 1fr);
   }
 
   .scrim {
@@ -738,14 +813,8 @@ canvas {
     min-height: 64vh;
   }
 }
-.app-shell {
-  --sidebar-width: 300px;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  transition: grid-template-columns 220ms ease;
-}
-
 .app-shell.sidebar-collapsed {
-  --sidebar-width: 74px;
+  --sidebar-width: 64px;
 }
 
 .paper-frame {
@@ -824,41 +893,12 @@ canvas {
 
 @media (max-width: 920px) {
   .app-shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sidebar {
-    position: fixed;
-    inset: 12px auto 12px 12px;
-    width: min(88vw, 320px);
-    transform: translateX(-110%);
-    transition: transform 220ms ease;
-    z-index: 20;
-  }
-
-  .app-shell.sidebar-open .sidebar {
-    transform: translateX(0);
+    grid-template-columns: 64px minmax(0, 1fr);
   }
 }
-/* ===== FIX: soft GPT-like sidebar collapse ===== */
 
-.app-shell {
-  --sidebar-width: 300px;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  transition: grid-template-columns 220ms ease;
-}
+/* sidebar-collapsed legacy rules removed — new rail is always 64px */
 
-.app-shell.sidebar-collapsed {
-  --sidebar-width: 74px;
-}
-
-.sidebar {
-  overflow: hidden;
-  transition:
-    padding 220ms ease,
-    border-radius 220ms ease,
-    transform 220ms ease;
-}
 
 @media (min-width: 921px) {
   .app-shell.sidebar-collapsed .sidebar {
@@ -1060,31 +1100,24 @@ button:hover {
 
 .app-shell {
   min-height: calc(100vh - 28px);
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  gap: 14px;
-  transition: grid-template-columns 260ms cubic-bezier(.2,.8,.2,1);
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 0;
 }
 
-.app-shell.sidebar-collapsed {
-  --sidebar-width: 76px;
-}
 
-.sidebar,
-.toolbar,
-.status-pill {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(18px) saturate(1.16);
-}
 
+/* sidebar background/border handled by .rail now */
 .sidebar {
-  padding: 14px;
-  gap: 14px;
-  border-radius: var(--radius-xl);
-  overflow: hidden auto;
-  scrollbar-width: thin;
+  overflow: visible;
+  background: none;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 0;
+  gap: 0;
+  border-radius: 0;
 }
+
 
 .sidebar-top {
   align-items: center;
@@ -1290,6 +1323,7 @@ button:hover {
 }
 
 .palette-card {
+  display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 8px;
@@ -1332,6 +1366,7 @@ button:hover {
 }
 
 .palette-samples {
+  display: grid;
   width: 50px;
   grid-template-columns: repeat(4, 1fr);
   gap: 3px;
@@ -1340,7 +1375,7 @@ button:hover {
 .sample {
   width: 10px;
   height: 10px;
-  aspect-ratio: auto;
+  aspect-ratio: 1;
   border-radius: 999px;
   box-shadow: 0 0 0 1px rgba(0,0,0,.05), inset 0 0 0 1px rgba(255,255,255,.45);
 }
@@ -1555,18 +1590,11 @@ button:hover {
 
   .app-shell {
     min-height: calc(100vh - 20px);
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 64px minmax(0, 1fr);
   }
 
   .sidebar {
-    inset: 10px auto 10px 10px;
-    width: min(86vw, 330px);
-    transform: translateX(calc(-100% - 16px));
     z-index: 30;
-  }
-
-  .app-shell.sidebar-open .sidebar {
-    transform: translateX(0);
   }
 
   .scrim {
@@ -2016,5 +2044,74 @@ canvas {
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: auto !important;
+  }
+}
+/* ===== FIX: show palette popup from the slim rail =====
+   This overrides old collapsed-sidebar rules that were hiding the 6 palette options. */
+.sidebar > .palette-menu {
+  position: fixed !important;
+  top: 94px !important;
+  left: 82px !important;
+  transform: none !important;
+  z-index: 500 !important;
+  display: grid !important;
+  gap: 6px !important;
+  width: min(242px, calc(100vw - 98px)) !important;
+  max-height: calc(100vh - 120px) !important;
+  overflow-y: auto !important;
+  padding: 7px !important;
+  background: var(--surface-solid, #ffffff) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.sidebar > .palette-menu[hidden] {
+  display: none !important;
+}
+
+/* Keep full palette cards visible even when sidebar is collapsed */
+.app-shell.sidebar-collapsed .sidebar > .palette-menu:not([hidden]) {
+  display: grid !important;
+}
+
+.app-shell.sidebar-collapsed .sidebar > .palette-menu .palette-card {
+  display: grid !important;
+  grid-template-columns: 1fr auto !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 44px !important;
+  padding: 8px 9px !important;
+  justify-content: stretch !important;
+}
+
+.app-shell.sidebar-collapsed .sidebar > .palette-menu .palette-meta {
+  display: flex !important;
+}
+
+.app-shell.sidebar-collapsed .sidebar > .palette-menu .palette-title,
+.app-shell.sidebar-collapsed .sidebar > .palette-menu .palette-dot {
+  display: inline !important;
+}
+
+.app-shell.sidebar-collapsed .sidebar > .palette-menu .palette-samples {
+  display: grid !important;
+  width: 50px !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 3px !important;
+}
+
+.app-shell.sidebar-collapsed .sidebar > .palette-menu .sample {
+  width: 10px !important;
+  height: 10px !important;
+}
+
+@media (max-width: 720px) {
+  .sidebar > .palette-menu {
+    top: 92px !important;
+    left: 74px !important;
+    width: min(238px, calc(100vw - 86px)) !important;
   }
 }
