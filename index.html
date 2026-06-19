@@ -96,6 +96,7 @@
               <button id="removeImageBtn" class="icon-btn" type="button" data-toolbar-action="remove-image" data-tooltip="Remove Picture"><span class="icon-glyph">🗑️</span></button>
 
               <button id="themeToggle" class="icon-btn ghost" type="button" data-toolbar-action="theme-toggle" data-tooltip="Toggle Dark Mode"><span class="icon-glyph">🌙</span></button>
+              <button id="soundToggle" class="icon-btn ghost" type="button" data-toolbar-action="sound-toggle" data-tooltip="Toggle Sound"><span class="icon-glyph">🔊</span></button>
               <div class="export-group">
                 <button id="exportBtn" class="icon-btn" type="button" data-toolbar-action="export" data-tooltip="Export" aria-haspopup="true" aria-expanded="false"><span class="icon-glyph">⬇️</span></button>
                 <div id="exportMenu" class="export-menu" hidden>
@@ -133,5 +134,9 @@
 
     <input id="pictureInput" type="file" accept="image/*" hidden />
     <script type="module" src="./app.js"></script>
+<script src="./resize.js"></script>
+<script type="module" src="./sound.js"></script>
+<script type="module" src="./app.js"></script>
+</body>
   </body>
 </html>

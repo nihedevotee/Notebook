@@ -1,3 +1,5 @@
+import { playClick, playSelect, playStrokeStart, isMuted, toggleMuted } from "./sound.js";
+
 const STORAGE_KEY = "simple-notebook-workspace-v1";
 const THEME_KEY = "simple-notebook-theme-v1";
  
@@ -62,6 +64,7 @@ const DOM = {
   pictureInput: document.getElementById("pictureInput"),
   imageLayer: document.getElementById("imageLayer"),
   themeToggle: document.getElementById("themeToggle"),
+  soundToggle: document.getElementById("soundToggle"),
   exportMenu: document.getElementById("exportMenu"),
   exportBtn: document.getElementById("exportBtn"),
   clearBtn: document.getElementById("clearBtn"),
@@ -456,6 +459,15 @@ function applyTheme() {
     DOM.themeToggle.textContent = state.theme === "dark" ? "☀️ Light" : "🌙 Dark";
     DOM.themeToggle.setAttribute("aria-label", `Switch to ${state.theme === "dark" ? "light" : "dark"} mode`);
   }
+}
+
+function renderSoundToggleState() {
+  if (!DOM.soundToggle) return;
+  const muted = isMuted();
+  const glyph = DOM.soundToggle.querySelector(".icon-glyph");
+  if (glyph) glyph.textContent = muted ? "🔇" : "🔊";
+  DOM.soundToggle.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+  DOM.soundToggle.dataset.tooltip = muted ? "Unmute Sound" : "Mute Sound";
 }
  
 function toggleTheme() {
@@ -1476,6 +1488,7 @@ function startStroke(event) {
  
   event.preventDefault();
   DOM.board.setPointerCapture(event.pointerId);
+  playStrokeStart();
   const firstPoint = getPoint(event);
   state.isDrawing = true;
   state.activePointerId = event.pointerId;
@@ -1738,6 +1751,7 @@ function handleSidebarClick(event) {
   const action = button.dataset.action;
   const projectId = button.dataset.projectId;
   const pageId = button.dataset.pageId;
+  playSelect();
  
   if (action === "select-project") {
     if (event.target.closest(".menu-button")) return;
@@ -1796,6 +1810,13 @@ function handleToolbarClick(event) {
   const button = event.target.closest("button[data-toolbar-action]");
   if (!button) return;
   const action = button.dataset.toolbarAction;
+  playClick();
+  if (action === "sound-toggle") {
+    const muted = toggleMuted();
+    renderSoundToggleState();
+    setStatus(muted ? "Sound muted." : "Sound on.");
+    return;
+  }
   if (action === "sidebar-toggle") toggleSidebar();
   if (action === "new-project") createProject();
   if (action === "new-page") createPage();
@@ -1832,6 +1853,7 @@ function initEvents() {
   });
  
   DOM.toolSelect?.addEventListener("change", (event) => {
+    playSelect();
     setMode(event.target.value);
   });
  
@@ -1851,16 +1873,19 @@ function initEvents() {
   });
  
   DOM.pdfThisPageBtn?.addEventListener("click", () => {
+    playClick();
     closePdfChoiceModal();
     exportPageAsPdf("page");
   });
  
   DOM.pdfWholeProjectBtn?.addEventListener("click", () => {
+    playClick();
     closePdfChoiceModal();
     exportPageAsPdf("project");
   });
  
   DOM.pdfCancelBtn?.addEventListener("click", () => {
+    playClick();
     closePdfChoiceModal();
   });
  
@@ -1931,6 +1956,7 @@ function boot() {
     state.sidebarOpen = false;
   }
   applyTheme();
+  renderSoundToggleState();
   renderAll();
   applyZoom();
   resizeCanvas();
